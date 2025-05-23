@@ -1,14 +1,16 @@
-# Welcome to your CDK TypeScript project
+# Mastra AI Lambda Implementation
 
-This is a blank project for CDK development with TypeScript.
+This repo uses the Mastra AI Weather example code, transformed to run serverless in a Lambda function.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+It does not build Mastra, or use their server or API. A simple API gateway has been provided as an example.
 
-## Useful commands
+## Installation Requirements
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+In your github repo / fork, configure the following environment secrets:
+
+-AWS_ACCOUNT_ID
+-AWS_ACCESS_KEY
+-AWS_SECRET_ACCESS_KEY
+-ANTHROPIC_API_KEY
+
+Optionally, you can configure `PINCONE_API_KEY` if you want to configure RAG.

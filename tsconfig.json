@@ -1,14 +1,19 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+			"/opt/nodejs/*": ["src/dependencies/nodejs/*"],
+		},
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ES2022",
+    "moduleResolution": "node",
     "lib": [
       "es2022"
     ],
+    
     "declaration": true,
     "strict": true,
-    "noImplicitAny": true,
+    "noImplicitAny": false,
     "strictNullChecks": true,
     "noImplicitThis": true,
     "alwaysStrict": true,
@@ -22,10 +27,24 @@
     "strictPropertyInitialization": false,
     "typeRoots": [
       "./node_modules/@types"
-    ]
+    ],
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   },
+  "include": [
+    "bin/**/*",
+    "lib/**/*",
+    "src/**/*",
+    "test/**/*"
+  ],
   "exclude": [
     "node_modules",
-    "cdk.out"
+    "src/dependencies/nodejs/node_modules",
+    "cdk.out",
+    "dist",
+    "layers",
+    "bin",
+    "lib"
   ]
 }

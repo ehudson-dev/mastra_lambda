@@ -1,0 +1,38 @@
+name: mastra-lambda
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  APP_NAME: mastra-lambda
+  AWS_ACCOUNT_ID: ${{secrets.AWS_ACCOUNT_ID}}
+  AWS_REGION: us-east-1
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@master
+        with:
+          aws-access-key-id: ${{secrets.AWS_ACCESS_KEY_ID}}
+          aws-secret-access-key: ${{secrets.AWS_SECRET_ACCESS_KEY}}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Install
+        run: npm install 
+
+      - name: Navigate dependency directory and install
+        run: cd src/dependencies/nodejs && npm install
+
+      - name: Compile
+        run: npm run build
+
+      - name: CDK deploy
+        run: npm run cdk deploy -- -c anthropic_api_key=${{secrets.ANTHROPIC_API_KEY}} 
