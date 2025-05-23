@@ -1,15 +1,11 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-			"/opt/nodejs/*": ["src/dependencies/nodejs/*"],
-		},
     "target": "ES2022",
     "module": "ES2022",
     "moduleResolution": "node",
-    "lib": [
-      "es2022"
-    ],
+    "lib": ["ES2022", "dom"],
+    "outDir": "./",
+    "rootDir": "./",
     "declaration": true,
     "strict": true,
     "noImplicitAny": false,
@@ -32,19 +28,10 @@
     "skipLibCheck": true
   },
   "include": [
-    "bin/**/*",
-    "lib/**/*",
-    "src/**/*",
-    "test/**/*"
+    "*.ts"
   ],
   "exclude": [
     "node_modules",
-    "src/dependencies/nodejs/node_modules",
-    "cdk.out",
-    "dist",
-    "layers",
-    "bin",
-    "lib",
-    "src/container"
+    "*.js"
   ]
 }

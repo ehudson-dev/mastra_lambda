@@ -1,11 +1,16 @@
 {
   "name": "mastra-qa-container",
   "version": "1.0.0",
-  "description": "Mastra QA with browser automation in Lambda container",
+  "description": "Mastra QA with browser automation in Lambda container - TypeScript",
   "main": "index.js",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
@@ -17,8 +22,9 @@
     "playwright-core": "^1.40.0",
     "zod": "^3.25.20"
   },
-  "scripts": {
-    "build": "echo 'No build step needed for container'",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.7.9",
+    "typescript": "^5.6.3"
   }
 }

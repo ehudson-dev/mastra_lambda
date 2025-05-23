@@ -17,14 +17,20 @@ RUN dnf update -y && \
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Copy package files first for better caching
-COPY package*.json ${LAMBDA_TASK_ROOT}/
+# Copy package files first for better Docker layer caching
+COPY package*.json tsconfig.json ${LAMBDA_TASK_ROOT}/
 
-# Install Node.js dependencies
-RUN npm ci --production --no-audit --no-fund
+# Install ALL dependencies (including devDependencies for TypeScript compilation)
+RUN npm ci --no-audit --no-fund
 
-# Copy source code
-COPY . ${LAMBDA_TASK_ROOT}/
+# Copy TypeScript source files
+COPY *.ts ${LAMBDA_TASK_ROOT}/
 
-# Set the CMD to your handler
+# Compile TypeScript to JavaScript
+RUN npm run build
+
+# Remove devDependencies to reduce final image size (optional)
+RUN npm prune --production
+
+# Set the CMD to your compiled handler
 CMD ["index.handler"]

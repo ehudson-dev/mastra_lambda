@@ -81,7 +81,7 @@ export class MastraLambdaStack extends cdk.Stack {
 
     // Container-based Lambda function
     const qaContainerFunction = new lambda.Function(this, "QAContainerFunction", {
-      code: lambda.Code.fromAssetImage("./container"),
+      code: lambda.Code.fromAssetImage("./src/container"),
       handler: lambda.Handler.FROM_IMAGE,
       runtime: lambda.Runtime.FROM_IMAGE,
       role: LambdaRole,
