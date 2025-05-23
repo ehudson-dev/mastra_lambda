@@ -1,5 +1,6 @@
 {
   "app": "npx tsx bin/mastra_lambda.ts",
+  "requireApproval": "never",
   "watch": {
     "include": [
       "**"
