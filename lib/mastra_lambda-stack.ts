@@ -86,7 +86,7 @@ export class MastraLambdaStack extends cdk.Stack {
       runtime: lambda.Runtime.FROM_IMAGE,
       role: LambdaRole,
       timeout: cdk.Duration.minutes(5), // Generous timeout for browser ops
-      memorySize: 3008, // Maximum memory
+      memorySize: 4096, // Maximum memory
       ephemeralStorageSize: cdk.Size.gibibytes(2), // Extra storage
       environment: {
         REGION: this.region,

@@ -12,10 +12,6 @@ RUN apt-get update && apt-get install -y \
     libtool \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Chromium path for Playwright
-ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
 # Copy package files first for better caching
 COPY . .
 
