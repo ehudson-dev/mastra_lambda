@@ -1,36 +1,30 @@
-FROM public.ecr.aws/lambda/nodejs:20
+FROM mcr.microsoft.com/playwright:v1.44.1-jammy
 
-# Install system dependencies for Chromium
-RUN dnf update -y && \
-    dnf install -y \
-    chromium \
-    nss \
-    freetype \
-    freetype-devel \
-    harfbuzz \
-    ca-certificates \
-    fontconfig \
-    wqy-zenhei-fonts \
-    && dnf clean all
+RUN apt-get update && apt-get install -y \
+    g++ \
+    make \
+    unzip \
+    libcurl4-openssl-dev \
+    cmake \
+    build-essential \
+    autoconf \
+    automake \
+    libtool \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set Chromium path for Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
 ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
-# Copy package files first for better Docker layer caching
-COPY package*.json tsconfig.json ${LAMBDA_TASK_ROOT}/
+# Copy package files first for better caching
+COPY . .
 
-# Install ALL dependencies (including devDependencies for TypeScript compilation)
-RUN npm ci --no-audit --no-fund
-
-# Copy TypeScript source files
-COPY *.ts ${LAMBDA_TASK_ROOT}/
+RUN npm install aws-lambda-ric
+RUN npm install
 
 # Compile TypeScript to JavaScript
 RUN npm run build
 
-# Remove devDependencies to reduce final image size (optional)
-RUN npm prune --production
-
-# Set the CMD to your compiled handler
+ENTRYPOINT ["npx", "aws-lambda-ric"]
+# Set the CMD to your handler
 CMD ["index.handler"]
