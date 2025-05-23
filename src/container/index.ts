@@ -95,7 +95,6 @@ const performContainerWebTest = async (context: TestContext): Promise<WebTestRes
     // Use system Chromium installed in container
     browser = await chromium.launch({
       headless: true,
-      executablePath: '/usr/bin/chromium-browser',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',

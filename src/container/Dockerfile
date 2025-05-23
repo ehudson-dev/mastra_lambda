@@ -1,5 +1,7 @@
 FROM mcr.microsoft.com/playwright:v1.44.1-jammy
 
+WORKDIR /var/task
+
 RUN apt-get update && apt-get install -y \
     g++ \
     make \
