@@ -209,7 +209,6 @@ const performContainerWebTest = async (context: TestContext): Promise<WebTestRes
     const screenshot = await page.screenshot({ 
       fullPage: true, 
       type: 'png',
-      quality: 60 // Compress for faster response
     });
     const screenshotBase64 = screenshot.toString('base64');
     console.log(`Screenshot captured: ${screenshotBase64.length} characters`);
