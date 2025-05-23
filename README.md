@@ -10,7 +10,7 @@ Due to my inability to figure out their interoperability between CJS and ESM mod
 
 In your github repo / fork, configure the following environment secrets:
 
--AWS_ACCOUNT_ID
--AWS_ACCESS_KEY
--AWS_SECRET_ACCESS_KEY
--ANTHROPIC_API_KEY
+- `AWS_ACCOUNT_ID`
+- `AWS_ACCESS_KEY`
+- `AWS_SECRET_ACCESS_KEY`
+- `ANTHROPIC_API_KEY`
