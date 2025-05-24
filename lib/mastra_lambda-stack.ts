@@ -1,10 +1,13 @@
-// lib/mastra_lambda-stack.ts - Using container images
+// lib/mastra_lambda-stack.ts - Updated with SQS and S3
 import * as cdk from "aws-cdk-lib";
 import { Construct } from "constructs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigatewayv2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dynamo from "aws-cdk-lib/aws-dynamodb";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as s3 from "aws-cdk-lib/aws-s3";
+import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
 import { anthropic_api_key } from "../bin/mastra_lambda";
 import { ApiEndpointLambda } from "./constructs/ApiEndpointLambda";
 
@@ -54,6 +57,74 @@ export class MastraLambdaStack extends cdk.Stack {
       })
     );
 
+    // Create S3 bucket for results storage
+    const resultsBucket = new s3.Bucket(this, "ResultsBucket", {
+      bucketName: `mastra-results-${this.account}-${this.region}`,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: true,
+      versioned: true,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+    });
+
+    // Create SQS queue for container job processing
+    const containerJobQueue = new sqs.Queue(this, "ContainerJobQueue", {
+      queueName: "mastra-container-jobs.fifo",
+      fifo: true,
+      contentBasedDeduplication: false, // We'll provide explicit deduplication IDs
+      visibilityTimeout: cdk.Duration.minutes(10), // Should be longer than container timeout
+      deadLetterQueue: {
+        queue: new sqs.Queue(this, "ContainerJobDLQ", {
+          queueName: "mastra-container-jobs-dlq.fifo",
+          fifo: true,
+        }),
+        maxReceiveCount: 3,
+      },
+    });
+
+    // S3 permissions for Lambda
+    LambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+        ],
+        resources: [
+          resultsBucket.bucketArn,
+          `${resultsBucket.bucketArn}/*`,
+        ],
+      })
+    );
+
+    // SQS permissions for Lambda
+    LambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+        ],
+        resources: [
+          containerJobQueue.queueArn,
+          containerJobQueue.deadLetterQueue!.queue.queueArn,
+        ],
+      })
+    );
+
+    // Lambda invoke permissions for container functions
+    LambdaRole.addToPolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: ["lambda:InvokeFunction"],
+        resources: ["*"],
+      })
+    );
+
     const storageTable = new dynamo.Table(this, "storage-table", {
       billingMode: dynamo.BillingMode.PAY_PER_REQUEST,
       partitionKey: {
@@ -94,7 +165,7 @@ export class MastraLambdaStack extends cdk.Stack {
       },
     });
 
-    // Keep the original layer-based function for weather agent
+    // Dependencies layer for basic functions
     const dependenciesLayer = new lambda.LayerVersion(
       this,
       "DependenciesLayer",
@@ -107,26 +178,7 @@ export class MastraLambdaStack extends cdk.Stack {
       }
     );
 
-    const apiHandler = new ApiEndpointLambda(this, "ApiHandler", {
-      api: Api,
-      route: "POST /api",
-      region: this.region,
-      handlerFunctionProps: {
-        code: lambda.Code.fromAsset("./src/handlers/api"),
-        handler: "index.handler",
-        runtime: lambda.Runtime.NODEJS_20_X,
-        role: LambdaRole,
-        layers: [dependenciesLayer],
-        timeout: cdk.Duration.seconds(30),
-        memorySize: 1024,
-        environment: {
-          REGION: this.region,
-          ANTHROPIC_API_KEY: anthropic_api_key,
-          MASTRA_TABLE_NAME: storageTable.tableName,
-        },
-      },
-    });
-
+    // Container QA function (the actual worker)
     const qaContainerFunction = new lambda.Function(
       this,
       "QAContainerFunction",
@@ -137,15 +189,105 @@ export class MastraLambdaStack extends cdk.Stack {
         role: LambdaRole,
         timeout: cdk.Duration.minutes(5), 
         memorySize: 2048,
-        ephemeralStorageSize: cdk.Size.gibibytes(2), // Extra storage
+        ephemeralStorageSize: cdk.Size.gibibytes(2),
         environment: {
           REGION: this.region,
           ANTHROPIC_API_KEY: anthropic_api_key,
           MASTRA_TABLE_NAME: storageTable.tableName,
           NODE_ENV: "production",
+          RESULTS_BUCKET: resultsBucket.bucketName,
         },
       }
     );
 
+    // SQS processor function that invokes container functions
+    const sqsProcessorFunction = new lambda.Function(
+      this,
+      "SQSProcessorFunction",
+      {
+        code: lambda.Code.fromAsset("./src/handlers/event/sqs"),
+        handler: "index.handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        role: LambdaRole,
+        layers: [dependenciesLayer],
+        timeout: cdk.Duration.minutes(6),
+        memorySize: 512,
+        environment: {
+          REGION: this.region,
+          ANTHROPIC_API_KEY: anthropic_api_key,
+          MASTRA_TABLE_NAME: storageTable.tableName,
+          RESULTS_BUCKET: resultsBucket.bucketName,
+          QA_CONTAINER_FUNCTION_NAME: qaContainerFunction.functionName,
+        },
+      }
+    );
+
+    // Add SQS event source to processor function
+    sqsProcessorFunction.addEventSource(
+      new lambdaEventSources.SqsEventSource(containerJobQueue, {
+        batchSize: 1, // Process one job at a time
+        maxBatchingWindow: cdk.Duration.seconds(5),
+        reportBatchItemFailures: true,
+      })
+    );
+
+    // API handler with updated environment variables
+    const apiHandler = new ApiEndpointLambda(this, "ApiHandler", {
+      api: Api,
+      route: "POST /api/job/start",
+      region: this.region,
+      handlerFunctionProps: {
+        code: lambda.Code.fromAsset("./src/handlers/api/job/start"),
+        handler: "index.handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        role: LambdaRole,
+        layers: [dependenciesLayer],
+        timeout: cdk.Duration.seconds(30),
+        memorySize: 1024,
+        environment: {
+          REGION: this.region,
+          ANTHROPIC_API_KEY: anthropic_api_key,
+          MASTRA_TABLE_NAME: storageTable.tableName,
+          CONTAINER_JOB_QUEUE_URL: containerJobQueue.queueUrl,
+          RESULTS_BUCKET: resultsBucket.bucketName,
+        },
+      },
+    });
+
+    // Job status API endpoint for checking job progress
+    const jobStatusHandler = new ApiEndpointLambda(this, "JobStatusHandler", {
+      api: Api,
+      route: "GET /api/job/{job_id}",
+      region: this.region,
+      handlerFunctionProps: {
+        code: lambda.Code.fromAsset("./src/handlers/job/status"),
+        handler: "index.handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        role: LambdaRole,
+        layers: [dependenciesLayer],
+        timeout: cdk.Duration.seconds(30),
+        memorySize: 512,
+        environment: {
+          REGION: this.region,
+          RESULTS_BUCKET: resultsBucket.bucketName,
+        },
+      },
+    });
+
+    // Output important values
+    new cdk.CfnOutput(this, "ApiUrl", {
+      value: `https://${Api.attrApiId}.execute-api.${this.region}.amazonaws.com`,
+      description: "API Gateway URL",
+    });
+
+    new cdk.CfnOutput(this, "ResultsBucketName", {
+      value: resultsBucket.bucketName,
+      description: "S3 bucket for storing job results",
+    });
+
+    new cdk.CfnOutput(this, "QueueUrl", {
+      value: containerJobQueue.queueUrl,
+      description: "SQS queue URL for container jobs",
+    });
   }
 }

@@ -1,5 +1,4 @@
-// container/index.ts - Main handler for containerized Lambda (TypeScript)
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
+// src/handlers/containers/qa/index.ts - Updated for async job processing
 import { chromium, Page, Browser } from 'playwright-core';
 import { anthropic } from '@ai-sdk/anthropic';
 import { Agent } from '@mastra/core/agent';
@@ -326,39 +325,21 @@ const containerQAAgent = new Agent({
   }),
 });
 
-// Main Lambda handler with proper typing
+// Main Lambda handler with proper typing and async job support
 export const handler = async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+  event: any
+): Promise<any> => {
   console.log('Container QA Handler invoked');
   console.log('Event:', JSON.stringify(event, null, 2));
   
-  // CORS headers
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-
-  // Handle preflight requests
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: '',
-    };
-  }
-
   try {
-    const request = JSON.parse(event.body || '{}');
+    const request = JSON.parse(event || '{}');
     
     console.log('Request:', request);
 
     if (!request.input) {
       return {
         statusCode: 400,
-        headers,
         body: JSON.stringify({
           error: 'Missing required field: input',
           containerMode: true,
@@ -367,9 +348,10 @@ export const handler = async (
     }
 
     const threadId: string = request.thread_id || crypto.randomUUID();
+    const jobId: string = request.jobId; // This will be provided by the SQS processor
     const startTime = Date.now();
 
-    console.log(`Processing with thread ID: ${threadId}`);
+    console.log(`Processing with thread ID: ${threadId}, job ID: ${jobId}`);
 
     const result = await containerQAAgent.generate(request.input, {
       threadId,
@@ -379,22 +361,25 @@ export const handler = async (
     const processingTime = Date.now() - startTime;
     console.log(`Processing completed in ${processingTime}ms`);
 
+    // Enhanced response with job tracking information
+    const response = {
+      thread_id: threadId,
+      job_id: jobId,
+      processingTime,
+      containerMode: true,
+      timestamp: new Date().toISOString(),
+      environment: {
+        nodeVersion: process.version,
+        platform: process.platform,
+        memoryUsage: process.memoryUsage(),
+        region: process.env.AWS_REGION,
+      },
+      ...result,
+    };
+
     return {
       statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        thread_id: threadId,
-        processingTime,
-        containerMode: true,
-        timestamp: new Date().toISOString(),
-        environment: {
-          nodeVersion: process.version,
-          platform: process.platform,
-          memoryUsage: process.memoryUsage(),
-          region: process.env.AWS_REGION,
-        },
-        ...result
-      }),
+      body: JSON.stringify(response),
     };
 
   } catch (error: any) {
@@ -403,13 +388,13 @@ export const handler = async (
     
     return {
       statusCode: 500,
-      headers,
       body: JSON.stringify({
         error: error.message,
         stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
         containerMode: true,
         type: error.constructor?.name || 'Error',
         timestamp: new Date().toISOString(),
+        job_id: JSON.parse(event.body || '{}').jobId,
       }),
     };
   }
