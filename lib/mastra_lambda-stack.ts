@@ -109,7 +109,7 @@ export class MastraLambdaStack extends cdk.Stack {
 
     const apiHandler = new ApiEndpointLambda(this, "ApiHandler", {
       api: Api,
-      route: "/api",
+      route: "POST /api",
       region: this.region,
       handlerFunctionProps: {
         code: lambda.Code.fromAsset("./src/handlers/api"),
