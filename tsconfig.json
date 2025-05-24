@@ -45,6 +45,6 @@
     "layers",
     "bin",
     "lib",
-    "src/container"
+    "src/handlers/containers"
   ]
 }

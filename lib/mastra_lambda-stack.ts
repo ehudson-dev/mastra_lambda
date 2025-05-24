@@ -131,7 +131,7 @@ export class MastraLambdaStack extends cdk.Stack {
       this,
       "QAContainerFunction",
       {
-        code: lambda.Code.fromAssetImage("./src/containers/qa"),
+        code: lambda.Code.fromAssetImage("./src/handlers/containers/qa"),
         handler: lambda.Handler.FROM_IMAGE,
         runtime: lambda.Runtime.FROM_IMAGE,
         role: LambdaRole,
