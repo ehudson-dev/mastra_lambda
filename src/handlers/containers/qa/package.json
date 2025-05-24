@@ -16,6 +16,7 @@
     "@ai-sdk/anthropic": "^1.2.12",
     "@aws-sdk/client-dynamodb": "^3.0.0",
     "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
     "@mastra/core": "^0.10.0",
     "@mastra/dynamodb": "^0.10.0",
     "@mastra/memory": "^0.10.0",
