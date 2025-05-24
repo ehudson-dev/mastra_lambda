@@ -6,6 +6,7 @@ import * as apigateway from "aws-cdk-lib/aws-apigatewayv2";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as dynamo from "aws-cdk-lib/aws-dynamodb";
 import { anthropic_api_key } from "../bin/mastra_lambda";
+import { ApiEndpointLambda } from "./constructs/ApiEndpointLambda";
 
 export class MastraLambdaStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -28,7 +29,9 @@ export class MastraLambdaStack extends cdk.Stack {
     const LambdaRole = new iam.Role(this, "LambdaRole", {
       assumedBy: new iam.ServicePrincipal("lambda.amazonaws.com"),
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole"),
+        iam.ManagedPolicy.fromAwsManagedPolicyName(
+          "service-role/AWSLambdaBasicExecutionRole"
+        ),
       ],
     });
 
@@ -79,20 +82,15 @@ export class MastraLambdaStack extends cdk.Stack {
       sortKey: { name: "gsi2sk", type: dynamo.AttributeType.STRING },
     });
 
-    // Container-based Lambda function
-    const qaContainerFunction = new lambda.Function(this, "QAContainerFunction", {
-      code: lambda.Code.fromAssetImage("./src/container"),
-      handler: lambda.Handler.FROM_IMAGE,
-      runtime: lambda.Runtime.FROM_IMAGE,
-      role: LambdaRole,
-      timeout: cdk.Duration.minutes(5), // Generous timeout for browser ops
-      memorySize: 8096, // Maximum memory
-      ephemeralStorageSize: cdk.Size.gibibytes(2), // Extra storage
-      environment: {
-        REGION: this.region,
-        ANTHROPIC_API_KEY: anthropic_api_key,
-        MASTRA_TABLE_NAME: storageTable.tableName,
-        NODE_ENV: "production",
+    // API Gateway
+    const Api = new apigateway.CfnApi(this, `Api`, {
+      name: `mastra container qa api`,
+      protocolType: "HTTP",
+      description: `mastra qa testing with container-based browser automation`,
+      corsConfiguration: {
+        allowOrigins: ["*"],
+        allowMethods: ["GET", "POST", "OPTIONS"],
+        allowHeaders: ["api-key", "authorization", "content-type"],
       },
     });
 
@@ -109,88 +107,45 @@ export class MastraLambdaStack extends cdk.Stack {
       }
     );
 
-    const basicApiHandler = new lambda.Function(this, "BasicApiHandler", {
-      code: lambda.Code.fromAsset("./src/handlers/api"),
-      handler: "index.handler",
-      runtime: lambda.Runtime.NODEJS_20_X,
-      role: LambdaRole,
-      layers: [dependenciesLayer],
-      timeout: cdk.Duration.seconds(30),
-      memorySize: 1024,
-      environment: {
-        REGION: this.region,
-        ANTHROPIC_API_KEY: anthropic_api_key,
-        MASTRA_TABLE_NAME: storageTable.tableName,
+    const apiHandler = new ApiEndpointLambda(this, "ApiHandler", {
+      api: Api,
+      route: "/api",
+      region: this.region,
+      handlerFunctionProps: {
+        code: lambda.Code.fromAsset("./src/handlers/api"),
+        handler: "index.handler",
+        runtime: lambda.Runtime.NODEJS_20_X,
+        role: LambdaRole,
+        layers: [dependenciesLayer],
+        timeout: cdk.Duration.seconds(30),
+        memorySize: 1024,
+        environment: {
+          REGION: this.region,
+          ANTHROPIC_API_KEY: anthropic_api_key,
+          MASTRA_TABLE_NAME: storageTable.tableName,
+        },
       },
     });
 
-    // API Gateway
-    const Api = new apigateway.CfnApi(this, `Api`, {
-      name: `mastra container qa api`,
-      protocolType: "HTTP",
-      description: `mastra qa testing with container-based browser automation`,
-      corsConfiguration: {
-        allowOrigins: ["*"],
-        allowMethods: ["GET", "POST", "OPTIONS"],
-        allowHeaders: ["api-key", "authorization", "content-type"],
-      },
-    });
+    const qaContainerFunction = new lambda.Function(
+      this,
+      "QAContainerFunction",
+      {
+        code: lambda.Code.fromAssetImage("./src/containers/qa"),
+        handler: lambda.Handler.FROM_IMAGE,
+        runtime: lambda.Runtime.FROM_IMAGE,
+        role: LambdaRole,
+        timeout: cdk.Duration.minutes(5), 
+        memorySize: 2048,
+        ephemeralStorageSize: cdk.Size.gibibytes(2), // Extra storage
+        environment: {
+          REGION: this.region,
+          ANTHROPIC_API_KEY: anthropic_api_key,
+          MASTRA_TABLE_NAME: storageTable.tableName,
+          NODE_ENV: "production",
+        },
+      }
+    );
 
-    // Routes
-    new apigateway.CfnRoute(this, "BasicRoute", {
-      apiId: Api.ref,
-      routeKey: "POST /",
-      target: `integrations/${new apigateway.CfnIntegration(this, "BasicIntegration", {
-        apiId: Api.ref,
-        integrationType: "AWS_PROXY",
-        integrationUri: basicApiHandler.functionArn,
-        payloadFormatVersion: "2.0",
-      }).ref}`,
-    });
-
-    new apigateway.CfnRoute(this, "QARoute", {
-      apiId: Api.ref,
-      routeKey: "POST /qa",
-      target: `integrations/${new apigateway.CfnIntegration(this, "QAIntegration", {
-        apiId: Api.ref,
-        integrationType: "AWS_PROXY",
-        integrationUri: qaContainerFunction.functionArn,
-        payloadFormatVersion: "2.0",
-      }).ref}`,
-    });
-
-    // Handle preflight CORS
-    new apigateway.CfnRoute(this, "OptionsRoute", {
-      apiId: Api.ref,
-      routeKey: "OPTIONS /qa",
-      target: `integrations/${new apigateway.CfnIntegration(this, "OptionsIntegration", {
-        apiId: Api.ref,
-        integrationType: "AWS_PROXY",
-        integrationUri: qaContainerFunction.functionArn,
-        payloadFormatVersion: "2.0",
-      }).ref}`,
-    });
-
-    // Lambda permissions
-    basicApiHandler.addPermission("BasicApiInvoke", {
-      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${Api.ref}/*/*`,
-    });
-
-    qaContainerFunction.addPermission("QAApiInvoke", {
-      principal: new iam.ServicePrincipal("apigateway.amazonaws.com"),
-      sourceArn: `arn:aws:execute-api:${this.region}:${this.account}:${Api.ref}/*/*`,
-    });
-
-    // Outputs
-    new cdk.CfnOutput(this, "ApiEndpoint", {
-      value: `https://${Api.ref}.execute-api.${this.region}.amazonaws.com`,
-      description: "API Endpoint - use /qa for containerized QA testing",
-    });
-
-    new cdk.CfnOutput(this, "QATestEndpoint", {
-      value: `https://${Api.ref}.execute-api.${this.region}.amazonaws.com/qa`,
-      description: "Direct containerized QA testing endpoint", 
-    });
   }
 }

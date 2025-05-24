@@ -3,7 +3,7 @@ name: mastra-lambda
 on:
   push:
     branches:
-      - qa
+      - main
 
 env:
   APP_NAME: mastra-lambda
