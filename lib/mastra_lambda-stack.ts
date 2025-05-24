@@ -226,7 +226,6 @@ export class MastraLambdaStack extends cdk.Stack {
     sqsProcessorFunction.addEventSource(
       new lambdaEventSources.SqsEventSource(containerJobQueue, {
         batchSize: 1, // Process one job at a time
-        maxBatchingWindow: cdk.Duration.seconds(5),
         reportBatchItemFailures: true,
       })
     );
