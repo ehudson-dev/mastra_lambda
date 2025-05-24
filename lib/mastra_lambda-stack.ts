@@ -259,7 +259,7 @@ export class MastraLambdaStack extends cdk.Stack {
       route: "GET /api/job/{job_id}",
       region: this.region,
       handlerFunctionProps: {
-        code: lambda.Code.fromAsset("./src/handlers/job/status"),
+        code: lambda.Code.fromAsset("./src/handlers/api/job/status"),
         handler: "index.handler",
         runtime: lambda.Runtime.NODEJS_20_X,
         role: LambdaRole,
