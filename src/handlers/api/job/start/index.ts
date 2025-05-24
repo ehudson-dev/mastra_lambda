@@ -51,7 +51,12 @@ export const handler = async (
       const jobPayload = {
         jobId,
         containerName: request.container,
-        input: request.input,
+        input: [
+          {
+            role: "user",
+            content: request.prompt,
+          },
+        ],
         threadId: request.thread_id || crypto.randomUUID(),
         timestamp,
         originalRequest: request,
@@ -88,8 +93,7 @@ export const handler = async (
           message: "Container job queued for processing",
           containerName: request.container,
           timestamp,
-          estimatedProcessingTime: "2-5 minutes",
-          checkStatusUrl: `/jobs/${jobId}`,
+          checkStatusUrl: `/api/job/${jobId}`,
           sqsMessageId: result.MessageId,
         });
       } catch (sqsError: any) {

@@ -333,11 +333,10 @@ export const handler = async (
   console.log('Event:', JSON.stringify(event, null, 2));
   
   try {
-    const request = JSON.parse(event || '{}');
     
-    console.log('Request:', request);
+    console.log('Request:', event);
 
-    if (!request.input) {
+    if (!event.input) {
       return {
         statusCode: 400,
         body: JSON.stringify({
@@ -347,13 +346,13 @@ export const handler = async (
       };
     }
 
-    const threadId: string = request.thread_id || crypto.randomUUID();
-    const jobId: string = request.jobId; // This will be provided by the SQS processor
+    const threadId: string = event.thread_id || crypto.randomUUID();
+    const jobId: string = event.jobId; // This will be provided by the SQS processor
     const startTime = Date.now();
 
     console.log(`Processing with thread ID: ${threadId}, job ID: ${jobId}`);
 
-    const result = await containerQAAgent.generate(request.input, {
+    const result = await containerQAAgent.generate(event.input, {
       threadId,
       resourceId: "container-qa-test",
     });
