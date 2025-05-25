@@ -1,12 +1,12 @@
-# Mastra AI Lambda Implementation
+# Mastra AI Serverless Implementation
 
-This repo uses the Mastra AI Library & CDK to deploy serverless Claude agents with the aim of doing dynamic QA on web applications.
+This repo uses the Mastra AI Library & CDK to deploy serverless Claude agents.
 
 It does not build Mastra, or use their server or API.
 
 ## API
 
-The api uses a format like:
+The API uses a format like:
 
 `POST /api/job/start` - start a job
 
