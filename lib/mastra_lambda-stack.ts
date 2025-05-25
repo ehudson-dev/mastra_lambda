@@ -187,7 +187,7 @@ export class MastraLambdaStack extends cdk.Stack {
         handler: lambda.Handler.FROM_IMAGE,
         runtime: lambda.Runtime.FROM_IMAGE,
         role: LambdaRole,
-        timeout: cdk.Duration.minutes(5), 
+        timeout: cdk.Duration.minutes(15), 
         memorySize: 2048,
         ephemeralStorageSize: cdk.Size.gibibytes(2),
         environment: {

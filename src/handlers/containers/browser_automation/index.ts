@@ -1,6 +1,6 @@
 // src/handlers/containers/qa/index.ts - Generic Browser Automation Toolkit
 import { chromium, Page, Browser, BrowserContext, Locator } from 'playwright-core';
-import { anthropic } from '@ai-sdk/anthropic';
+import { createAnthropic } from '@ai-sdk/anthropic';
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
 import { DynamoDBStore } from '@mastra/dynamodb';
@@ -122,7 +122,7 @@ const navigateTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Navigation complete: ${title} (${url})`);
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       return {
         success: true,
         url,
@@ -172,7 +172,7 @@ const findElementsTool = createTool({
       const elements = await page.locator(context.selector).all();
       console.log(`Found ${elements.length} elements matching: ${context.selector}`);
       browserManager.updateActivity();
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       return {
         success: true,
         count: elements.length,
@@ -242,7 +242,7 @@ const clickTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Successfully clicked: ${context.selector}`);
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       return {
         success: true,
         elementFound: true,
@@ -314,7 +314,7 @@ const typeTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Successfully typed into: ${context.selector}`);
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       return {
         success: true,
         elementFound: true,
@@ -335,13 +335,7 @@ const typeTool = createTool({
 // Generic Wait Tool
 const waitTool = createTool({
   id: 'wait',
-  description: 'Wait for various conditions or simply pause execution',
-  inputSchema: z.object({
-    type: z.enum(['timeout', 'selector', 'navigation', 'function']).describe('Type of wait condition'),
-    value: z.union([z.string(), z.number()]).describe('Wait value (milliseconds for timeout, selector for element, or JS function string)'),
-    timeout: z.number().default(10000).describe('Maximum time to wait in milliseconds'),
-    state: z.enum(['visible', 'hidden', 'attached', 'detached']).default('visible').describe('State to wait for when waiting for selector'),
-  }),
+  description: 'Wait for 10 seconds',
   outputSchema: z.object({
     success: z.boolean(),
     waited: z.number(),
@@ -351,36 +345,10 @@ const waitTool = createTool({
   execute: async ({ context }): Promise<any> => {
     try {
       const browserManager = BrowserContextManager.getInstance();
-      const page = await browserManager.getPage();
       const startTime = Date.now();
       
-      console.log(`Waiting for: ${context.type} = ${context.value}`);
-      
-      switch (context.type) {
-        case 'timeout':
-          const ms = typeof context.value === 'number' ? context.value : parseInt(context.value as string);
-          await page.waitForTimeout(ms);
-          break;
-          
-        case 'selector':
-          await page.waitForSelector(context.value as string, { 
-            state: context.state as any,
-            timeout: context.timeout 
-          });
-          break;
-          
-        case 'navigation':
-          await page.waitForLoadState('load', { timeout: context.timeout });
-          break;
-          
-        case 'function':
-          await page.waitForFunction(context.value as string, {}, { timeout: context.timeout });
-          break;
-          
-        default:
-          throw new Error(`Unknown wait type: ${context.type}`);
-      }
-      
+      await new Promise(resolve => setTimeout(resolve, 10000))
+
       const waited = Date.now() - startTime;
       browserManager.updateActivity();
       console.log(`Wait completed in ${waited}ms`);
@@ -443,7 +411,7 @@ const screenshotTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Screenshot saved: ${s3Url}`);
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       return {
         success: true,
         filename: context.filename,
@@ -530,7 +498,7 @@ const analyzePageTool = createTool({
       
       browserManager.updateActivity();
       console.log('Page analysis completed');
-      await new Promise(resolve => setTimeout(resolve, 15000));
+      
       return analysis;
     } catch (error: any) {
       console.error('Page analysis failed:', error);
@@ -622,12 +590,386 @@ const saveScreenshotToS3 = async (screenshot: Buffer, name: string, description:
   }
 };
 
+// Find and Type Combined Tool
+const findAndTypeTool = createTool({
+  id: 'find-and-type',
+  description: 'Find an input element and type text into it in one operation',
+  inputSchema: z.object({
+    selector: z.string().describe('CSS selector for input element'),
+    text: z.string().describe('Text to type'),
+    elementIndex: z.number().default(0).describe('Index if multiple elements match'),
+    clear: z.boolean().default(true).describe('Clear field before typing'),
+    pressEnter: z.boolean().default(false).describe('Press Enter after typing'),
+    waitTimeout: z.number().default(5000).describe('How long to wait for element'),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    elementsFound: z.number(),
+    typed: z.boolean(),
+    finalValue: z.string().optional(),
+    error: z.string().optional(),
+  }),
+  execute: async ({ context }): Promise<any> => {
+    try {
+      const browserManager = BrowserContextManager.getInstance();
+      const page = await browserManager.getPage();
+      
+      console.log(`Find and type: ${context.selector} = "${context.text.substring(0, 50)}..."`);
+      
+      // Wait for and find elements
+      await page.waitForSelector(context.selector, { timeout: context.waitTimeout });
+      const elements = await page.locator(context.selector).all();
+      
+      if (elements.length === 0) {
+        return {
+          success: false,
+          elementsFound: 0,
+          typed: false,
+          error: `No elements found for selector: ${context.selector}`,
+        };
+      }
+      
+      // Get the target element
+      const element = page.locator(context.selector).nth(context.elementIndex);
+      await element.waitFor({ state: 'visible', timeout: context.waitTimeout });
+      
+      // Clear and type
+      if (context.clear) {
+        await element.clear();
+      }
+      
+      await element.fill(context.text);
+      
+      if (context.pressEnter) {
+        await element.press('Enter');
+      }
+      
+      // Get final value for verification
+      const finalValue = await element.inputValue();
+      
+      browserManager.updateActivity();
+      console.log(`✅ Found ${elements.length} elements, typed into element ${context.elementIndex}`);
+      
+      // Add rate limiting delay
+      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      return {
+        success: true,
+        elementsFound: elements.length,
+        typed: true,
+        finalValue,
+      };
+      
+    } catch (error: any) {
+      console.error('Find and type failed:', error);
+      return {
+        success: false,
+        elementsFound: 0,
+        typed: false,
+        error: error.message,
+      };
+    }
+  },
+});
+
+// Find and Click Combined Tool
+const findAndClickTool = createTool({
+  id: 'find-and-click',
+  description: 'Find a clickable element and click it in one operation',
+  inputSchema: z.object({
+    selector: z.string().describe('CSS selector for element to click'),
+    elementIndex: z.number().default(0).describe('Index if multiple elements match'),
+    waitTimeout: z.number().default(5000).describe('How long to wait for element'),
+    force: z.boolean().default(false).describe('Force click even if element not ready'),
+    waitAfterClick: z.number().default(1000).describe('Milliseconds to wait after clicking'),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    elementsFound: z.number(),
+    clicked: z.boolean(),
+    elementText: z.string().optional(),
+    error: z.string().optional(),
+  }),
+  execute: async ({ context }): Promise<any> => {
+    try {
+      const browserManager = BrowserContextManager.getInstance();
+      const page = await browserManager.getPage();
+      
+      console.log(`Find and click: ${context.selector} (index: ${context.elementIndex})`);
+      
+      // Wait for and find elements
+      await page.waitForSelector(context.selector, { timeout: context.waitTimeout });
+      const elements = await page.locator(context.selector).all();
+      
+      if (elements.length === 0) {
+        return {
+          success: false,
+          elementsFound: 0,
+          clicked: false,
+          error: `No elements found for selector: ${context.selector}`,
+        };
+      }
+      
+      if (context.elementIndex >= elements.length) {
+        return {
+          success: false,
+          elementsFound: elements.length,
+          clicked: false,
+          error: `Element index ${context.elementIndex} out of range (found ${elements.length} elements)`,
+        };
+      }
+      
+      // Get element text for verification
+      const element = page.locator(context.selector).nth(context.elementIndex);
+      const elementText = await element.textContent() || '';
+      
+      // Click the element
+      await element.click({ force: context.force });
+      
+      // Wait after click for any resulting changes
+      if (context.waitAfterClick > 0) {
+        await page.waitForTimeout(context.waitAfterClick);
+      }
+      
+      browserManager.updateActivity();
+      console.log(`✅ Found ${elements.length} elements, clicked element ${context.elementIndex}: "${elementText}"`);
+      
+      // Add rate limiting delay
+      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      return {
+        success: true,
+        elementsFound: elements.length,
+        clicked: true,
+        elementText: elementText.substring(0, 100), // Limit text length
+      };
+      
+    } catch (error: any) {
+      console.error('Find and click failed:', error);
+      return {
+        success: false,
+        elementsFound: 0,
+        clicked: false,
+        error: error.message,
+      };
+    }
+  },
+});
+
+// Navigate and Analyze Combined Tool  
+const navigateAndAnalyzeTool = createTool({
+  id: 'navigate-and-analyze',
+  description: 'Navigate to a URL and immediately analyze the page structure',
+  inputSchema: z.object({
+    url: z.string().describe('URL to navigate to'),
+    waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle']).default('load'),
+    timeout: z.number().default(30000).describe('Navigation timeout'),
+    includeTitle: z.boolean().default(true).describe('Include page title in analysis'),
+    includeFormInfo: z.boolean().default(true).describe('Include basic form info'),
+  }),
+  outputSchema: z.object({
+    navigationSuccess: z.boolean(),
+    url: z.string(),
+    title: z.string(),
+    hasLoginForm: z.boolean(),
+    hasSearchElements: z.boolean(),
+    formCount: z.number(),
+    buttonCount: z.number(),
+    inputCount: z.number(),
+    error: z.string().optional(),
+  }),
+  execute: async ({ context }): Promise<any> => {
+    try {
+      const browserManager = BrowserContextManager.getInstance();
+      const page = await browserManager.getPage();
+      
+      console.log(`Navigate and analyze: ${context.url}`);
+      
+      // Navigate
+      await page.goto(context.url, { 
+        waitUntil: context.waitUntil as any, 
+        timeout: context.timeout 
+      });
+      
+      // Brief wait for page to settle
+      await page.waitForTimeout(2000);
+      
+      const url = page.url();
+      const title = await page.title();
+      
+      // Quick analysis without heavy data
+      const analysis = await page.evaluate(() => {
+        const forms = document.querySelectorAll('form');
+        const buttons = document.querySelectorAll('button');
+        const inputs = document.querySelectorAll('input');
+        
+        // Check for login indicators
+        const hasLoginForm = Array.from(forms).some(form => 
+          form.innerHTML.toLowerCase().includes('password') ||
+          form.innerHTML.toLowerCase().includes('login') ||
+          form.innerHTML.toLowerCase().includes('sign in')
+        );
+        
+        // Check for search indicators
+        const hasSearchElements = Array.from(inputs).some(input => 
+          input.placeholder?.toLowerCase().includes('search') ||
+          input.name?.toLowerCase().includes('search')
+        );
+        
+        return {
+          hasLoginForm,
+          hasSearchElements,
+          formCount: forms.length,
+          buttonCount: buttons.length,
+          inputCount: inputs.length,
+        };
+      });
+      
+      browserManager.updateActivity();
+      console.log(`✅ Navigated to ${url} and analyzed: ${analysis.formCount} forms, ${analysis.inputCount} inputs`);
+      
+      // Add rate limiting delay
+      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      return {
+        navigationSuccess: true,
+        url,
+        title,
+        ...analysis,
+      };
+      
+    } catch (error: any) {
+      console.error('Navigate and analyze failed:', error);
+      return {
+        navigationSuccess: false,
+        url: context.url,
+        title: '',
+        hasLoginForm: false,
+        hasSearchElements: false,
+        formCount: 0,
+        buttonCount: 0,
+        inputCount: 0,
+        error: error.message,
+      };
+    }
+  },
+});
+
+// Multi-Step Form Fill Tool
+const fillFormTool = createTool({
+  id: 'fill-form',
+  description: 'Fill multiple form fields in one operation',
+  inputSchema: z.object({
+    fields: z.array(z.object({
+      selector: z.string(),
+      value: z.string(),
+      clear: z.boolean().default(true),
+    })).describe('Array of fields to fill'),
+    submitSelector: z.string().optional().describe('Submit button selector (will click if provided)'),
+    waitBetweenFields: z.number().default(500).describe('Milliseconds to wait between field fills'),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    fieldsFilled: z.number(),
+    submitted: z.boolean(),
+    errors: z.array(z.string()),
+  }),
+  execute: async ({ context }): Promise<any> => {
+    try {
+      const browserManager = BrowserContextManager.getInstance();
+      const page = await browserManager.getPage();
+      
+      console.log(`Fill form with ${context.fields.length} fields`);
+      
+      const errors: string[] = [];
+      let fieldsFilled = 0;
+      
+      // Fill each field
+      for (const field of context.fields) {
+        try {
+          await page.waitForSelector(field.selector, { timeout: 5000 });
+          const element = page.locator(field.selector).first();
+          
+          if (field.clear) {
+            await element.clear();
+          }
+          
+          await element.fill(field.value);
+          fieldsFilled++;
+          
+          if (context.waitBetweenFields > 0) {
+            await page.waitForTimeout(context.waitBetweenFields);
+          }
+          
+          console.log(`✓ Filled field: ${field.selector}`);
+          
+        } catch (error: any) {
+          const errorMsg = `Failed to fill ${field.selector}: ${error.message}`;
+          errors.push(errorMsg);
+          console.error(errorMsg);
+        }
+      }
+      
+      // Submit if requested
+      let submitted = false;
+      if (context.submitSelector) {
+        try {
+          await page.waitForSelector(context.submitSelector, { timeout: 5000 });
+          await page.locator(context.submitSelector).first().click();
+          submitted = true;
+          console.log(`✓ Clicked submit: ${context.submitSelector}`);
+        } catch (error: any) {
+          errors.push(`Failed to submit: ${error.message}`);
+        }
+      }
+      
+      browserManager.updateActivity();
+      console.log(`✅ Form fill completed: ${fieldsFilled}/${context.fields.length} fields filled`);
+      
+      // Add rate limiting delay
+      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      return {
+        success: errors.length === 0,
+        fieldsFilled,
+        submitted,
+        errors,
+      };
+      
+    } catch (error: any) {
+      console.error('Form fill failed:', error);
+      return {
+        success: false,
+        fieldsFilled: 0,
+        submitted: false,
+        errors: [error.message],
+      };
+    }
+  },
+});
+
 const enhancedInstructions = `
 Browser automation agent. Complete ALL steps of multi-step tasks.
 
 CRITICAL EFFICIENCY RULES:
-- You are rate limited to 20,000 token uses per minute. A tool call uses on average 2,500 to 3,000 tokens. Wait 15 seconds between tool uses.
 - Use ONLY standard CSS selectors (no jQuery syntax)
+- Prefer bundled tools to reduce API calls
+- Use fillForm for login (email + password + submit in one call)
+- Use navigateAndAnalyze to understand new pages quickly
+- You are rate limited to 20,000 token uses per minute. A tool call uses on average 2,500 to 3,000 tokens.
+
+BUNDLED TOOLS (Preferred - Fewer API calls):
+- **findAndType**: Find input and type text in one operation
+- **findAndClick**: Find element and click in one operation  
+- **navigateAndAnalyze**: Navigate and get page overview in one operation
+- **fillForm**: Fill multiple form fields in one operation
+
+INDIVIDUAL TOOLS (Use sparingly):
+- navigate, wait, screenshot, executeJS
 
 VALID CSS SELECTORS:
 ✅ input[type="email"]
@@ -648,22 +990,35 @@ For text content, use:
 ✅ [aria-label*="text"]
 ✅ [title*="text"]
 
-Tools: navigate, findElements, click, type, wait, screenshot, analyzePage, executeJS
-
-For efficiency: Use getInfo:false, includeText:false, and includeStructure:false unless debugging. Use minimal analyzePage unless needed.
 
 Approach:
 1. Plan workflow 
 2. Execute step by step
-3. Don't stop until complete
+
+Example efficient workflow:
+1. navigateAndAnalyze to login page
+2. fillForm with username, password, and submit
+3. wait for redirect  
+4. screenshot homepage
+5. findAndType to search field
+6. findAndClick search results
+
 `;
+
+const anthropic = createAnthropic({headers: {
+  "anthropic-beta": "token-efficient-tools-2025-02-19"
+}})
 
 // Generic Browser Agent
 const genericBrowserAgent = new Agent({
   name: 'Generic Browser Automation Agent',
   instructions: enhancedInstructions,
-  model: anthropic('claude-4-sonnet-20250514'),
+  model: anthropic('claude-3-7-sonnet-20250219'),
   tools: { 
+    findAndType: findAndTypeTool,
+    findAndClick: findAndClickTool,
+    navigateAndAnalyze: navigateAndAnalyzeTool,
+    fillForm: fillFormTool,
     navigate: navigateTool,
     findElements: findElementsTool,
     click: clickTool,
@@ -682,7 +1037,7 @@ const genericBrowserAgent = new Agent({
       }
     }),
     options: {
-      lastMessages: 10, // Increased for more context
+      lastMessages: 3, // Increased for more context
     },
   }),
 });
@@ -724,7 +1079,12 @@ export const handler = async (event: any): Promise<any> => {
       resourceId: "generic-browser-automation",
       maxSteps: 25,
       maxRetries: 0,
-      maxTokens: 64000
+      maxTokens: 64000,
+      providerOptions: {
+        anthropic: {
+          test: ''
+        }
+      }
     });
 
     const processingTime = Date.now() - startTime;
