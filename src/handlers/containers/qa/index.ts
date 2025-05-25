@@ -373,9 +373,9 @@ const performEnhancedObservationalAutomation = async (context: any): Promise<any
       ],
     });
 
-    const page: Page = await browser.newPage({
-      viewport: { width: 1280, height: 720 }
-    });
+    const browserContext = await browser.newContext();
+    
+    const page: Page = await browserContext.newPage();
 
     // Set global page context for tools
     setCurrentPageContext(page);
@@ -684,6 +684,7 @@ const performObservationalLogin = async (
   try {
     // Fill email field (same as before)
     console.log(`Step ${currentStep}: Filling email field`);
+    currentStep++
     
     const emailField = page.locator('input[type="email"], input[name="email"], input[name="username"]').first();
     await emailField.waitFor({ state: 'visible', timeout: 5000 });
