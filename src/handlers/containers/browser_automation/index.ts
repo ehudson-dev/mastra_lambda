@@ -673,8 +673,6 @@ const genericBrowserAgent = new Agent({
     type: typeTool,
     wait: waitTool,
     screenshot: screenshotTool,
-    analyzePage: analyzePageTool,
-    executeJS: executeJSTool,
   },
   memory: new Memory({
     storage: new DynamoDBStore({
