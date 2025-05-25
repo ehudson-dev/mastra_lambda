@@ -55,69 +55,69 @@ This directory contains a modular browser automation system built with Mastra.ai
 
 ```
 src/handlers/containers/browser_automation/
-├── index.ts                    # Main Lambda handler
-├── agent/                      # Browser automation agent
-│   └── index.ts               # Agent setup and configuration
-├── lib/                        # Core library components
-│   ├── anthropic/             # Anthropic API integration
-│   │   └── index.ts          # Rate limiting and API client setup
-│   ├── browser_context_manager/ # Browser lifecycle management
-│   │   └── index.ts          # Browser context singleton
-│   └── utils/                 # Utility functions
-│       └── index.ts          # S3 screenshot storage utilities
-├── tools/                      # Individual browser automation tools
-│   ├── execute_js/            # JavaScript execution tool
+├── index.ts                                  # Main Lambda handler
+├── agent/                                    # Browser automation agent
+│   └── index.ts                              # Agent setup and configuration
+├── lib/                                      # Core library components
+│   ├── anthropic/                            # Anthropic API integration
+│   │   └── index.ts                          # Rate limiting and API client setup
+│   ├── browser_context_manager/              # Browser lifecycle management
+│   │   └── index.ts                          # Browser context singleton
+│   └── utils/                                # Utility functions
+│       └── index.ts                          # S3 screenshot storage utilities
+├── tools/                                    # Individual browser automation tools
+│   ├── execute_js/                           # JavaScript execution tool
 │   │   └── index.ts
-│   ├── fill_form/             # Multi-field form filling tool
+│   ├── fill_form/                            # Multi-field form filling tool
 │   │   └── index.ts
-│   ├── find_and_click/        # Combined find + click tool
+│   ├── find_and_click/                       # Combined find + click tool
 │   │   └── index.ts
-│   ├── find_and_type/         # Combined find + type tool
+│   ├── find_and_type/                        # Combined find + type tool
 │   │   └── index.ts
-│   ├── find_elements/         # Element finding tool
+│   ├── find_elements/                        # Element finding tool
 │   │   └── index.ts
-│   ├── navigate_and_analyze/  # Navigation + page analysis tool
+│   ├── navigate_and_analyze/                 # Navigation + page analysis tool
 │   │   └── index.ts
-│   ├── screenshot/            # Screenshot capture tool
+│   ├── screenshot/                           # Screenshot capture tool
 │   │   └── index.ts
-│   └── wait/                  # Wait/delay tool
+│   └── wait/                                 # Wait/delay tool
 │       └── index.ts
-├── types.ts                    # Shared TypeScript interfaces
-├── package.json               # Package dependencies
-├── tsconfig.json              # TypeScript configuration
-└── Dockerfile                 # Container build configuration
+├── types.ts                                  # Shared TypeScript interfaces
+├── package.json                              # Package dependencies
+├── tsconfig.json                             # TypeScript configuration
+└── Dockerfile                                # Container build configuration
 ```
 
 ## Key Components
 
-### 1. Browser Context Manager (`browser-context-manager.ts`)
+### 1. Browser Context Manager (`/lib/browser_context_manager`)
 - Singleton pattern for managing Playwright browser instances
 - Automatic cleanup after 5 minutes of inactivity  
 - Optimized for Lambda container environments
 - Handles browser initialization with appropriate Chrome flags
 
-### 2. Rate Limiting (`rate-limiting.ts`)
+### 2. Rate Limiting (`/lib/anthropic`)
 - Intelligent Anthropic API rate limiting
 - Monitors token usage and request counts from response headers
 - Implements adaptive delays and proactive waiting
 - Prevents rate limit violations that could cause job failures
 
-### 3. Tools (`tools/`)
+### 3. Tools (`/tools`)
 Each tool is designed for specific browser automation tasks:
 
 - **Bundled Tools** (Preferred - reduce API calls):
-  - `find-and-type.ts` - Find input fields and type in one operation
-  - `find-and-click.ts` - Find clickable elements and click in one operation
-  - `navigate-and-analyze.ts` - Navigate to URL and analyze page structure
-  - `fill-form.ts` - Fill multiple form fields and optionally submit
+  - `find-and-type` - Find input fields and type in one operation
+  - `find-and-click` - Find clickable elements and click in one operation
+  - `navigate-and-analyze` - Navigate to URL and analyze page structure
+  - `fill-form` - Fill multiple form fields and optionally submit
 
 - **Individual Tools** (Use sparingly):
-  - `find-elements.ts` - Find elements using CSS selectors
-  - `wait.ts` - Add delays for page loading
-  - `screenshot.ts` - Capture screenshots and store in S3
-  - `execute-js.ts` - Execute custom JavaScript in page context
+  - `find-elements` - Find elements using CSS selectors
+  - `wait` - Add delays for page loading
+  - `screenshot` - Capture screenshots and store in S3
+  - `execute-js` - Execute custom JavaScript in page context
 
-### 4. Agent (`agent.ts`)
+### 4. Agent (`/agent`)
 - Mastra Agent configured with specialized browser automation instructions
 - Uses Claude 3-7 Sonnet with efficiency-focused prompting
 - Emphasizes bundled tools to reduce API calls
@@ -166,6 +166,6 @@ The agent is trained to use standard CSS selectors only:
 1. Create new tool file in `tools/` directory
 2. Follow existing tool patterns with Zod schemas
 3. Export from `tools/index.ts`
-4. Add to agent configuration in `agent.ts`
+4. Add to agent configuration in `/agent/index.ts`
 
 This modular structure makes the codebase maintainable, testable, and easy to extend with additional browser automation capabilities.
