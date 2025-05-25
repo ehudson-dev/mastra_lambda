@@ -889,7 +889,7 @@ const genericBrowserAgent = new Agent({
       }
     }),
     options: {
-      lastMessages: 15, // Increased for more context
+      lastMessages: 100, // Increased for more context
     },
   }),
 });
@@ -929,6 +929,9 @@ export const handler = async (event: any): Promise<any> => {
     const result = await genericBrowserAgent.generate(event.input, {
       threadId,
       resourceId: "generic-browser-automation",
+      maxSteps: 100,
+      maxRetries: 1,
+      maxTokens: 100000
     });
 
     const processingTime = Date.now() - startTime;
