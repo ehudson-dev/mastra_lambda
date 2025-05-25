@@ -43,10 +43,60 @@ interface BrowserResult {
   executionTime: number;
 }
 
-// Observational browser agent that analyzes page state after each action
-const observationalBrowserTool = createTool({
-  id: 'observational-browser-automation',
-  description: 'Browser automation with visual feedback and decision-making at each step',
+// Independent screenshot tool that Claude can call at any time
+const screenshotTool = createTool({
+  id: 'take-screenshot',
+  description: 'Take a screenshot of the current page state and save it to S3',
+  inputSchema: z.object({
+    filename: z.string().describe('Name for the screenshot file (e.g., "auth_result.png")'),
+    description: z.string().describe('Description of what the screenshot shows'),
+    fullPage: z.boolean().default(true).describe('Whether to capture the full page or just viewport'),
+  }),
+  outputSchema: z.object({
+    success: z.boolean(),
+    s3Url: z.string(),
+    filename: z.string(),
+    description: z.string(),
+    timestamp: z.string(),
+    error: z.string().optional(),
+  }),
+  execute: async ({ context }): Promise<any> => {
+    console.log(`Taking screenshot: ${context.filename}`);
+    
+    // This will be called with the current page context
+    return await captureIndependentScreenshot(context.filename, context.description, context.fullPage);
+  },
+});
+
+// Page analysis tool for Claude to understand current state
+const pageAnalysisTool = createTool({
+  id: 'analyze-page',
+  description: 'Analyze the current page state to understand what is visible',
+  inputSchema: z.object({
+    focus: z.string().optional().describe('Specific aspect to focus on (e.g., "login status", "search results", "errors")'),
+  }),
+  outputSchema: z.object({
+    url: z.string(),
+    title: z.string(),
+    status: z.string(),
+    content: z.string(),
+    errors: z.array(z.string()),
+    forms: z.array(z.string()),
+    buttons: z.array(z.string()),
+    inputs: z.array(z.string()),
+    keyElements: z.array(z.string()),
+  }),  
+  execute: async ({ context }): Promise<any> => {
+    console.log(`Analyzing page with focus: ${context.focus || 'general'}`);
+    
+    return await analyzeCurrentPage(context.focus);
+  },
+});
+
+// Updated observational browser tool with screenshot access
+const enhancedObservationalBrowserTool = createTool({
+  id: 'enhanced-observational-browser-automation',
+  description: 'Browser automation with built-in screenshot and analysis capabilities',
   inputSchema: z.object({
     url: z.string().describe('URL to navigate to'),
     credentials: z.object({
@@ -55,6 +105,13 @@ const observationalBrowserTool = createTool({
     }).optional().describe('Login credentials if needed'),
     searchTerm: z.string().optional().describe('Term to search for'),
     objective: z.string().describe('What we are trying to accomplish'),
+    customActions: z.array(z.object({
+      type: z.enum(['screenshot', 'wait', 'analyze']),
+      filename: z.string().optional(),
+      description: z.string().optional(),
+      duration: z.number().optional(),
+      focus: z.string().optional(),
+    })).optional().describe('Additional actions to perform'),
     maxActions: z.number().default(10).describe('Maximum number of actions to attempt'),
   }),
   outputSchema: z.object({
@@ -70,22 +127,220 @@ const observationalBrowserTool = createTool({
       screenshot: z.string().optional(),
     })),
     finalObservation: z.string(),
-    screenshots: z.array(z.string()),
+    screenshots: z.array(z.object({
+      name: z.string(),
+      s3Url: z.string(),
+      description: z.string(),
+      timestamp: z.string(),
+    })),
     errors: z.array(z.string()),
     executionTime: z.number(),
   }),
   execute: async ({ context }): Promise<any> => {
-    console.log(`Starting observational browser automation for: ${context.objective}`);
-    return await performObservationalAutomation(context);
+    console.log(`Starting enhanced observational automation for: ${context.objective}`);
+    return await performEnhancedObservationalAutomation(context);
   },
 });
 
-// Main observational automation function
-const performObservationalAutomation = async (context: any): Promise<any> => {
+// Global page reference for screenshot tools
+let currentPage: Page | null = null;
+
+// Set the current page context for tools to use
+const setCurrentPageContext = (page: Page | null) => {
+  currentPage = page;
+};
+
+// Independent screenshot function
+const captureIndependentScreenshot = async (
+  filename: string,
+  description: string,
+  fullPage: boolean = true
+): Promise<any> => {
+  
+  if (!currentPage) {
+    return {
+      success: false,
+      s3Url: '',
+      filename,
+      description,
+      timestamp: new Date().toISOString(),
+      error: 'No active page context available'
+    };
+  }
+
+  try {
+    console.log(`Capturing independent screenshot: ${filename}`);
+    
+    const screenshot = await currentPage.screenshot({ 
+      fullPage, 
+      type: 'png',
+    });
+    
+    // Clean filename to ensure it ends with .png
+    const cleanFilename = filename.endsWith('.png') ? filename : `${filename}.png`;
+    
+    const s3Url = await saveScreenshotToS3(screenshot, cleanFilename.replace('.png', ''), description);
+    
+    return {
+      success: true,
+      s3Url,
+      filename: cleanFilename,
+      description,
+      timestamp: new Date().toISOString(),
+    };
+    
+  } catch (error: any) {
+    console.error(`Failed to capture screenshot ${filename}:`, error);
+    
+    return {
+      success: false,
+      s3Url: '',
+      filename,
+      description,
+      timestamp: new Date().toISOString(),
+      error: error.message
+    };
+  }
+};
+
+// Independent page analysis function
+const analyzeCurrentPage = async (focus?: string): Promise<any> => {
+  
+  if (!currentPage) {
+    return {
+      url: '',
+      title: '',
+      status: 'No active page context',
+      content: '',
+      errors: ['No active page context available'],
+      forms: [],
+      buttons: [],
+      inputs: [],
+      keyElements: [],
+    };
+  }
+
+  try {
+    console.log(`Analyzing current page with focus: ${focus || 'general'}`);
+    
+    const analysis = await currentPage.evaluate((focusArea) => {
+      const currentUrl = window.location.href;
+      const pageTitle = document.title;
+      
+      // Get page status
+      let status = 'loaded';
+      if (currentUrl.includes('login') || currentUrl.includes('auth')) {
+        status = 'login_page';
+      } else if (currentUrl.includes('dashboard') || document.querySelector('.dashboard')) {
+        status = 'dashboard_page';
+      } else if (document.querySelector('.search-results')) {
+        status = 'search_results_page';
+      }
+      
+      // Get visible content (first 1000 chars)
+      const bodyText = document.body?.innerText?.substring(0, 1000) || '';
+      
+      // Find errors
+      const errorSelectors = ['.error', '.alert-danger', '.text-red-500', '.text-destructive', '[role="alert"]'];
+      const errors = [] as any[];
+      for (const selector of errorSelectors) {
+        const elements = document.querySelectorAll(selector);
+        elements.forEach((el: any) => {
+          if (el.offsetParent !== null) {
+            const text = el.textContent?.trim();
+            if (text && text.length > 0) {
+              errors.push(text);
+            }
+          }
+        })
+      }
+      
+      // Find forms
+      const forms = [] as any[];
+      document.querySelectorAll('form').forEach((form, index) => {
+        const action = form.action || 'no-action';
+        const method = form.method || 'GET';
+        forms.push(`Form ${index + 1}: ${method} ${action}`);
+      });
+      
+      // Find buttons
+      const buttons = [] as any[];
+      document.querySelectorAll('button').forEach((button, index) => {
+        const text = button.textContent?.trim() || 'no-text';
+        const type = button.type || 'button';
+        const disabled = button.disabled ? ' (disabled)' : '';
+        buttons.push(`${text} [${type}]${disabled}`);
+      });
+      
+      // Find inputs
+      const inputs = [] as any[];
+      document.querySelectorAll('input').forEach((input, index) => {
+        const type = input.type || 'text';
+        const name = input.name || `input-${index}`;
+        const placeholder = input.placeholder || '';
+        const value = input.value ? `value: ${input.value.substring(0, 20)}...` : 'empty';
+        inputs.push(`${name} [${type}] ${placeholder} (${value})`);
+      });
+      
+      // Find key elements based on focus
+      const keyElements = [] as any[];
+      if (focusArea === 'login status') {
+        // Look for login-related elements
+        if (document.querySelector('input[type="password"]')) keyElements.push('Password field present');
+        if (document.querySelector('button:contains("Sign")')) keyElements.push('Sign in button present');
+        if (currentUrl.includes('login')) keyElements.push('On login page');
+      } else if (focusArea === 'search results') {
+        // Look for search-related elements
+        if (document.querySelector('.search-results')) keyElements.push('Search results container');
+        if (document.querySelector('input[type="search"]')) keyElements.push('Search input field');
+      } else {
+        // General key elements
+        const mainElement = document.querySelector('main, #main, .main');
+        if (mainElement) keyElements.push('Main content area found');
+        
+        const navElement = document.querySelector('nav, .navbar, .navigation');
+        if (navElement) keyElements.push('Navigation element found');
+      }
+      
+      return {
+        url: currentUrl,
+        title: pageTitle,
+        status,
+        content: bodyText,
+        errors,
+        forms,
+        buttons,
+        inputs,
+        keyElements,
+      };
+    }, focus);
+    
+    console.log('Page analysis completed:', analysis);
+    return analysis;
+    
+  } catch (error: any) {
+    console.error('Page analysis failed:', error);
+    
+    return {
+      url: currentPage.url(),
+      title: await currentPage.title(),
+      status: 'analysis_failed',
+      content: '',
+      errors: [error.message],
+      forms: [],
+      buttons: [],
+      inputs: [],
+      keyElements: [],
+    };
+  }
+};
+
+// Enhanced automation function with tool access
+const performEnhancedObservationalAutomation = async (context: any): Promise<any> => {
   let browser: Browser | null = null;
   const startTime = Date.now();
   const actionsTaken: Array<{step: number, action: string, observation: string, decision: string, screenshot?: string}> = [];
-  const screenshots: string[] = [];
+  const screenshots: Array<{name: string, s3Url: string, description: string, timestamp: string}> = [];
   const errors: string[] = [];
   let currentStep = 0;
 
@@ -122,6 +377,9 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
       viewport: { width: 1280, height: 720 }
     });
 
+    // Set global page context for tools
+    setCurrentPageContext(page);
+
     // Step 1: Navigate to URL
     currentStep++;
     console.log(`Step ${currentStep}: Navigating to ${context.url}`);
@@ -129,7 +387,6 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
     await page.goto(context.url, { waitUntil: 'networkidle', timeout: 30000 });
     await page.waitForTimeout(2000);
 
-    // Observe the page after navigation
     const initialObservation = await observePage(page, 'after_navigation');
     const initialScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-navigation`, screenshots);
     
@@ -141,50 +398,87 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
       screenshot: initialScreenshot,
     });
 
-    console.log(`Initial Observation: ${initialObservation.summary}`);
-
     result.finalUrl = page.url();
     result.pageTitle = await page.title();
 
-    // Step 2: Handle login if credentials provided
+    // Handle login if needed (same enhanced login logic as before)
     if (context.credentials && initialObservation.hasLoginForm) {
-      currentStep++;
-      console.log(`Step ${currentStep}: Attempting login`);
-      
       const loginResult = await performObservationalLogin(page, context.credentials, currentStep, actionsTaken, screenshots);
       
       if (!loginResult.success) {
         errors.push(`Login failed: ${loginResult.error}`);
         result.success = false;
         result.finalObservation = `Login failed: ${loginResult.error}`;
-        result.actionsTaken = actionsTaken;
-        result.screenshots = screenshots;
-        result.errors = errors;
+        await browser.close();
         return result;
       }
       
       currentStep = loginResult.nextStep;
     }
 
-    // Step 3: Handle search if search term provided
+    // Handle search if needed
     if (context.searchTerm) {
-      currentStep++;
-      console.log(`Step ${currentStep}: Attempting search for "${context.searchTerm}"`);
-      
       const searchResult = await performObservationalSearch(page, context.searchTerm, currentStep, actionsTaken, screenshots);
-      
       if (!searchResult.success) {
         errors.push(`Search failed: ${searchResult.error}`);
       }
-      
       currentStep = searchResult.nextStep;
+    }
+
+    // Handle custom actions (including custom screenshots)
+    if (context.customActions && context.customActions.length > 0) {
+      for (const customAction of context.customActions) {
+        currentStep++;
+        
+        if (customAction.type === 'screenshot') {
+          const filename = customAction.filename || `custom-screenshot-${currentStep}`;
+          const description = customAction.description || 'Custom screenshot';
+          
+          const screenshotResult = await captureIndependentScreenshot(filename, description);
+          
+          if (screenshotResult.success) {
+            screenshots.push({
+              name: screenshotResult.filename,
+              s3Url: screenshotResult.s3Url,
+              description: screenshotResult.description,
+              timestamp: screenshotResult.timestamp,
+            });
+          }
+          
+          actionsTaken.push({
+            step: currentStep,
+            action: `Take custom screenshot: ${filename}`,
+            observation: screenshotResult.success ? 'Screenshot captured successfully' : `Screenshot failed: ${screenshotResult.error}`,
+            decision: 'Custom screenshot action completed',
+            screenshot: screenshotResult.success ? screenshotResult.s3Url : undefined,
+          });
+          
+        } else if (customAction.type === 'wait') {
+          const duration = customAction.duration || 2000;
+          await page.waitForTimeout(duration);
+          
+          actionsTaken.push({
+            step: currentStep,
+            action: `Wait for ${duration}ms`,
+            observation: `Waited ${duration} milliseconds`,
+            decision: 'Wait completed, continuing',
+          });
+          
+        } else if (customAction.type === 'analyze') {
+          const analysis = await analyzeCurrentPage(customAction.focus);
+          
+          actionsTaken.push({
+            step: currentStep,
+            action: `Analyze page (focus: ${customAction.focus || 'general'})`,
+            observation: `Page analysis: ${analysis.status}, ${analysis.errors.length} errors, ${analysis.buttons.length} buttons`,
+            decision: 'Page analysis completed',
+          });
+        }
+      }
     }
 
     // Final observation
     const finalObservation = await observePage(page, 'final_state');
-    const finalScreenshot = await captureAndStoreScreenshot(page, 'final-state', screenshots);
-
-    screenshots.push(finalScreenshot);
     
     result.finalObservation = finalObservation.summary;
     result.success = errors.length === 0 && !finalObservation.hasErrors;
@@ -195,11 +489,12 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
     result.pageTitle = await page.title();
 
     await browser.close();
+    setCurrentPageContext(null); // Clear context
 
     return result;
 
   } catch (error: any) {
-    console.error('Observational automation failed:', error);
+    console.error('Enhanced observational automation failed:', error);
     if (browser) {
       try {
         await browser.close();
@@ -207,6 +502,7 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
         console.error('Error closing browser:', e);
       }
     }
+    setCurrentPageContext(null);
 
     result.errors = [...errors, `Automation failed: ${error.message}`];
     result.executionTime = Date.now() - startTime;
@@ -380,7 +676,7 @@ const performObservationalLogin = async (
   credentials: any, 
   startStep: number, 
   actionsTaken: any[], 
-  screenshots: string[]
+  screenshots: Array<{name: string, s3Url: string, description: string, timestamp: string}>
 ): Promise<{success: boolean, error?: string, nextStep: number}> => {
   
   let currentStep = startStep;
@@ -525,7 +821,7 @@ const performObservationalSearch = async (
   searchTerm: string, 
   startStep: number, 
   actionsTaken: any[], 
-  screenshots: string[]
+  screenshots: Array<{name: string, s3Url: string, description: string, timestamp: string}>
 ): Promise<{success: boolean, error?: string, nextStep: number}> => {
   
   let currentStep = startStep;
@@ -571,11 +867,16 @@ const performObservationalSearch = async (
 };
 
 // Capture and store screenshot
-const captureAndStoreScreenshot = async (page: Page, name: string, screenshots: string[]): Promise<string> => {
+const captureAndStoreScreenshot = async (page: Page, name: string, screenshots: Array<{name: string, s3Url: string, description: string, timestamp: string}>): Promise<string> => {
   try {
     const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
     const s3Url = await saveScreenshotToS3(screenshot, name, `Screenshot: ${name}`);
-    screenshots.push(s3Url);
+    screenshots.push({
+        name,
+        s3Url, 
+        description: `Screenshot: ${name}`,
+        timestamp: new Date().toISOString(),
+      })
     return s3Url;
   } catch (error) {
     console.error(`Failed to capture screenshot ${name}:`, error);
@@ -1121,9 +1422,11 @@ const observationalBrowserAgent = new Agent({
     If search results aren't visible, don't claim the search succeeded.
     
     Be honest about what you can actually see and accomplish.
+
+    You have access to the enhancedObservationalBrowserTool, screenshotTool, and pageAnalysisTool to assist you.
   `,
   model: anthropic('claude-4-sonnet-20250514'),
-  tools: { observationalBrowserTool },
+  tools: { enhancedObservationalBrowserTool, screenshotTool, pageAnalysisTool},
   memory: new Memory({
     storage: new DynamoDBStore({
       name: "dynamodb",
