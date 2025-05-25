@@ -950,7 +950,7 @@ const observationalBrowserAgent = new Agent({
     - Should we retry with a different approach?
     - Should we proceed to the next step?
     - Should we abort due to errors?
-    - Should we wait and repeat the analysis step due to loading in progress?
+    - Should we wait, take another screenshot, and analyze again? (if content appears to be loading)
     
     ### 4. REPORT Findings
     Clearly communicate what you observed and why you made each decision.
