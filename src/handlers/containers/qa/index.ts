@@ -43,85 +43,65 @@ interface BrowserResult {
   executionTime: number;
 }
 
-// Flexible browser automation tool
-const flexibleBrowserTool = createTool({
-  id: 'flexible-browser-automation',
-  description: 'Perform flexible browser automation tasks including navigation, interaction, and data extraction',
+// Observational browser agent that analyzes page state after each action
+const observationalBrowserTool = createTool({
+  id: 'observational-browser-automation',
+  description: 'Browser automation with visual feedback and decision-making at each step',
   inputSchema: z.object({
-    url: z.string().describe('Starting URL'),
-    prompt: z.string().describe('Natural language description of what to do'),
-    // Optional structured actions if the user wants to be specific
-    actions: z.array(z.object({
-      type: z.enum(['navigate', 'click', 'type', 'wait', 'scroll', 'select', 'screenshot', 'extract_text', 'check_element', 'custom_js']),
-      selector: z.string().optional(),
-      value: z.string().optional(),
-      url: z.string().optional(),
-      timeout: z.number().optional(),
-      description: z.string(),
-      saveAs: z.string().optional(),
-      script: z.string().optional(),
-    })).optional().describe('Optional specific actions to perform'),
-    // Authentication if needed
+    url: z.string().describe('URL to navigate to'),
     credentials: z.object({
       username: z.string(),
       password: z.string(),
-      loginUrl: z.string().optional(),
-      usernameSelector: z.string().optional(),
-      passwordSelector: z.string().optional(),
-      submitSelector: z.string().optional(),
-    }).optional().describe('Login credentials if authentication is required'),
-    timeout: z.number().default(60000).describe('Overall timeout in milliseconds'),
+    }).optional().describe('Login credentials if needed'),
+    searchTerm: z.string().optional().describe('Term to search for'),
+    objective: z.string().describe('What we are trying to accomplish'),
+    maxActions: z.number().default(10).describe('Maximum number of actions to attempt'),
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    url: z.string(),
+    finalUrl: z.string(),
     pageTitle: z.string(),
-    actions: z.object({
-      completed: z.array(z.any()),
-      failed: z.array(z.object({
-        action: z.any(),
-        error: z.string(),
-      })),
-    }),
-    screenshots: z.array(z.object({
-      name: z.string(),
-      s3Url: z.string(),
-      description: z.string(),
-      timestamp: z.string(),
+    objective: z.string(),
+    actionsTaken: z.array(z.object({
+      step: z.number(),
+      action: z.string(),
+      observation: z.string(),
+      decision: z.string(),
+      screenshot: z.string().optional(),
     })),
-    extractedData: z.record(z.any()),
+    finalObservation: z.string(),
+    screenshots: z.array(z.string()),
     errors: z.array(z.string()),
     executionTime: z.number(),
   }),
-  execute: async ({ context }): Promise<BrowserResult> => {
-    console.log(`Flexible browser automation executing: ${context.prompt}`);
-    return await performBrowserAutomation(context);
+  execute: async ({ context }): Promise<any> => {
+    console.log(`Starting observational browser automation for: ${context.objective}`);
+    return await performObservationalAutomation(context);
   },
 });
 
-const performBrowserAutomation = async (context: any): Promise<BrowserResult> => {
+// Main observational automation function
+const performObservationalAutomation = async (context: any): Promise<any> => {
   let browser: Browser | null = null;
   const startTime = Date.now();
+  const actionsTaken: Array<{step: number, action: string, observation: string, decision: string, screenshot?: string}> = [];
+  const screenshots: string[] = [];
   const errors: string[] = [];
-  const screenshots: Array<{name: string, s3Url: string, description: string, timestamp: string}> = [];
-  const extractedData: Record<string, any> = {};
-  const completedActions: BrowserAction[] = [];
-  const failedActions: Array<{action: BrowserAction, error: string}> = [];
+  let currentStep = 0;
 
-  const result: BrowserResult = {
+  const result = {
     success: false,
-    url: context.url,
+    finalUrl: '',
     pageTitle: '',
-    actions: { completed: [], failed: [] },
-    screenshots: [],
-    extractedData: {},
-    errors: [],
+    objective: context.objective,
+    actionsTaken: [] as any[],
+    finalObservation: '',
+    screenshots: [] as any[],
+    errors: [] as any[],
     executionTime: 0,
   };
 
   try {
-    console.log('Launching browser for flexible automation...');
-    
     browser = await chromium.launch({
       headless: true,
       args: [
@@ -135,9 +115,6 @@ const performBrowserAutomation = async (context: any): Promise<BrowserResult> =>
         '--disable-plugins',
         '--single-process',
         '--no-zygote',
-        '--disable-background-timer-throttling',
-        '--disable-backgrounding-occluded-windows',
-        '--disable-renderer-backgrounding',
       ],
     });
 
@@ -145,86 +122,82 @@ const performBrowserAutomation = async (context: any): Promise<BrowserResult> =>
       viewport: { width: 1280, height: 720 }
     });
 
-    // Listen for errors
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        errors.push(`Console Error: ${msg.text()}`);
-      }
+    // Step 1: Navigate to URL
+    currentStep++;
+    console.log(`Step ${currentStep}: Navigating to ${context.url}`);
+    
+    await page.goto(context.url, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(2000);
+
+    // Observe the page after navigation
+    const initialObservation = await observePage(page, 'after_navigation');
+    const initialScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-navigation`, screenshots);
+    
+    actionsTaken.push({
+      step: currentStep,
+      action: `Navigate to ${context.url}`,
+      observation: initialObservation.summary,
+      decision: 'Proceeding based on page analysis',
+      screenshot: initialScreenshot,
     });
 
-    page.on('pageerror', (error: Error) => {
-      errors.push(`Page Error: ${error.message}`);
-    });
+    console.log(`Initial Observation: ${initialObservation.summary}`);
 
-    // Navigate to initial URL
-    console.log(`Navigating to: ${context.url}`);
-    await page.goto(context.url, { 
-      waitUntil: 'networkidle',
-      timeout: context.timeout || 60000
-    });
-
+    result.finalUrl = page.url();
     result.pageTitle = await page.title();
-    result.url = page.url();
 
-    // Handle authentication if provided
-    if (context.credentials) {
-      try {
-        await performLogin(page, context.credentials);
-        console.log('Login completed successfully');
-      } catch (error: any) {
-        errors.push(`Login failed: ${error.message}`);
-        // Continue with automation even if login fails
-      }
-    }
-
-    // If structured actions are provided, execute them
-    if (context.actions && context.actions.length > 0) {
-      for (const action of context.actions) {
-        try {
-          await executeAction(page, action, screenshots, extractedData);
-          completedActions.push(action);
-          console.log(`✓ Action completed: ${action.description}`);
-        } catch (error: any) {
-          const errorMsg = `Action failed: ${action.description} - ${error.message}`;
-          failedActions.push({ action, error: errorMsg });
-          errors.push(errorMsg);
-          console.log(`✗ Action failed: ${action.description}`);
-        }
-      }
-    } else {
-      // If no structured actions, let the AI determine what to do based on the prompt
-      // This is where we'd integrate with the AI to convert natural language to actions
-      console.log(`Interpreting prompt: "${context.prompt}"`);
-      const inferredActions = await interpretPromptToActions(context.prompt, page);
+    // Step 2: Handle login if credentials provided
+    if (context.credentials && initialObservation.hasLoginForm) {
+      currentStep++;
+      console.log(`Step ${currentStep}: Attempting login`);
       
-      for (const action of inferredActions) {
-        try {
-          await executeAction(page, action, screenshots, extractedData);
-          completedActions.push(action);
-          console.log(`✓ Inferred action completed: ${action.description}`);
-        } catch (error: any) {
-          const errorMsg = `Inferred action failed: ${action.description} - ${error.message}`;
-          failedActions.push({ action, error: errorMsg });
-          errors.push(errorMsg);
-          console.log(`✗ Inferred action failed: ${action.description}`);
-        }
+      const loginResult = await performObservationalLogin(page, context.credentials, currentStep, actionsTaken, screenshots);
+      
+      if (!loginResult.success) {
+        errors.push(`Login failed: ${loginResult.error}`);
+        result.success = false;
+        result.finalObservation = `Login failed: ${loginResult.error}`;
+        result.actionsTaken = actionsTaken;
+        result.screenshots = screenshots;
+        result.errors = errors;
+        return result;
       }
+      
+      currentStep = loginResult.nextStep;
     }
 
-    result.actions.completed = completedActions;
-    result.actions.failed = failedActions;
+    // Step 3: Handle search if search term provided
+    if (context.searchTerm) {
+      currentStep++;
+      console.log(`Step ${currentStep}: Attempting search for "${context.searchTerm}"`);
+      
+      const searchResult = await performObservationalSearch(page, context.searchTerm, currentStep, actionsTaken, screenshots);
+      
+      if (!searchResult.success) {
+        errors.push(`Search failed: ${searchResult.error}`);
+      }
+      
+      currentStep = searchResult.nextStep;
+    }
+
+    // Final observation
+    const finalObservation = await observePage(page, 'final_state');
+    const finalScreenshot = await captureAndStoreScreenshot(page, 'final-state', screenshots);
+    
+    result.finalObservation = finalObservation.summary;
+    result.success = errors.length === 0 && !finalObservation.hasErrors;
+    result.actionsTaken = actionsTaken;
     result.screenshots = screenshots;
-    result.extractedData = extractedData;
     result.errors = errors;
-    result.success = failedActions.length === 0 && errors.length === 0;
+    result.finalUrl = page.url();
+    result.pageTitle = await page.title();
 
     await browser.close();
-    console.log('Browser automation completed successfully');
 
     return result;
 
   } catch (error: any) {
-    console.error('Browser automation failed:', error);
+    console.error('Observational automation failed:', error);
     if (browser) {
       try {
         await browser.close();
@@ -241,218 +214,297 @@ const performBrowserAutomation = async (context: any): Promise<BrowserResult> =>
   }
 };
 
-const interpretPromptToActions = async (prompt: string, page: Page): Promise<BrowserAction[]> => {
-  // Simple prompt interpretation - in a real system, you might use AI to parse this
-  const actions: BrowserAction[] = [];
-  const lowerPrompt = prompt.toLowerCase();
-
-  // Google search example
-  if (lowerPrompt.includes('google') && lowerPrompt.includes('search')) {
-    const searchTerm = extractSearchTerm(prompt);
+// Comprehensive page observation function
+const observePage = async (page: Page, context: string): Promise<any> => {
+  console.log(`=== OBSERVING PAGE: ${context} ===`);
+  
+  const observation = await page.evaluate(() => {
+    const currentUrl = window.location.href;
+    const pageTitle = document.title;
     
-    actions.push({
-      type: 'navigate',
-      url: 'https://www.google.com',
-      description: 'Navigate to Google'
-    });
+    // Check for login form
+    const loginForms = document.querySelectorAll('form');
+    const emailInputs = document.querySelectorAll('input[type="email"], input[name="email"], input[name="username"]');
+    const passwordInputs = document.querySelectorAll('input[type="password"]');
+    const hasLoginForm = loginForms.length > 0 && emailInputs.length > 0 && passwordInputs.length > 0;
     
-    actions.push({
-      type: 'wait',
-      timeout: 2000,
-      description: 'Wait for Google to load'
-    });
+    // Check for search functionality
+    const searchInputs = document.querySelectorAll('input[type="search"], input[name="search"], input[placeholder*="search" i]');
+    const hasSearchForm = searchInputs.length > 0;
     
-    actions.push({
-      type: 'type',
-      selector: 'textarea[name="q"], input[name="q"]',
-      value: searchTerm,
-      description: `Search for "${searchTerm}"`
-    });
-    
-    actions.push({
-      type: 'click',
-      selector: 'input[name="btnK"], button[type="submit"]',
-      description: 'Click search button'
-    });
-    
-    actions.push({
-      type: 'wait',
-      timeout: 3000,
-      description: 'Wait for search results'
-    });
-    
-    if (lowerPrompt.includes('screenshot')) {
-      actions.push({
-        type: 'screenshot',
-        description: 'Take screenshot of search results',
-        saveAs: 'search-results'
-      });
+    // Check for error messages
+    const errorSelectors = [
+      '.error', '.alert-danger', '.text-red-500', '.text-destructive', 
+      '[role="alert"]', '.error-message', '[class*="error"]'
+    ];
+    const errorElements = [] as any[];
+    for (const selector of errorSelectors) {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach((el: any) => {
+        if (el.offsetParent !== null) { // visible elements only
+          const text = el.textContent?.trim();
+          if (text && text.length > 0) {
+            errorElements.push(text);
+          }
+        }
+      })
     }
+    
+    // Check for success indicators
+    const successSelectors = [
+      '.success', '.alert-success', '.text-green-500', '.success-message',
+      '[class*="success"]', '.dashboard', '[data-testid*="dashboard"]'
+    ];
+    const successElements = [] as any[];
+    for (const selector of successSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        successElements.push(selector);
+      }
+    }
+    
+    // Get visible text content (first 500 chars)
+    const bodyText = document.body?.innerText?.substring(0, 500) || '';
+    
+    // Check if we're still on login page
+    const isLoginPage = currentUrl.includes('login') || currentUrl.includes('auth') || 
+                       pageTitle.toLowerCase().includes('login') || pageTitle.toLowerCase().includes('sign in');
+    
+    // Check for specific form field values
+    const emailFieldValue = emailInputs.length > 0 ? (emailInputs[0] as HTMLInputElement).value : '';
+    const passwordFieldValue = passwordInputs.length > 0 ? (passwordInputs[0] as HTMLInputElement).value.length : 0;
+    
+    return {
+      url: currentUrl,
+      title: pageTitle,
+      hasLoginForm,
+      hasSearchForm,
+      isLoginPage,
+      errors: errorElements,
+      successIndicators: successElements,
+      bodyText,
+      emailFieldValue,
+      passwordFieldLength: passwordFieldValue,
+      visibleElements: {
+        loginForms: loginForms.length,
+        emailInputs: emailInputs.length,
+        passwordInputs: passwordInputs.length,
+        searchInputs: searchInputs.length,
+      }
+    };
+  });
+  
+  // Create human-readable summary
+  let summary = `URL: ${observation.url}\nTitle: ${observation.title}\n`;
+  
+  if (observation.isLoginPage) {
+    summary += `STATUS: Still on login page\n`;
+  } else {
+    summary += `STATUS: Not on login page (login may have succeeded)\n`;
   }
-
-  // Login example
-  else if (lowerPrompt.includes('login') || lowerPrompt.includes('sign in')) {
-    // Would need credentials provided separately
-    actions.push({
-      type: 'screenshot',
-      description: 'Take screenshot of login page',
-      saveAs: 'login-page'
-    });
+  
+  if (observation.errors.length > 0) {
+    summary += `ERRORS FOUND: ${observation.errors.join(', ')}\n`;
   }
-
-  // Form filling example
-  else if (lowerPrompt.includes('fill') && lowerPrompt.includes('form')) {
-    actions.push({
-      type: 'screenshot',
-      description: 'Take screenshot of form',
-      saveAs: 'form-page'
-    });
+  
+  if (observation.successIndicators.length > 0) {
+    summary += `SUCCESS INDICATORS: ${observation.successIndicators.join(', ')}\n`;
   }
+  
+  if (observation.emailFieldValue) {
+    summary += `EMAIL FIELD: ${observation.emailFieldValue}\n`;
+  }
+  
+  if (observation.passwordFieldLength > 0) {
+    summary += `PASSWORD FIELD: ${observation.passwordFieldLength} characters\n`;
+  }
+  
+  summary += `VISIBLE CONTENT: ${observation.bodyText.substring(0, 200)}...`;
+  
+  console.log('Page Observation:', summary);
+  
+  return {
+    ...observation,
+    summary,
+    hasErrors: observation.errors.length > 0,
+  };
+};
 
-  // Click on something
-  else if (lowerPrompt.includes('click')) {
-    const clickTarget = extractClickTarget(prompt);
-    actions.push({
-      type: 'click',
-      selector: clickTarget.selector,
-      description: `Click on ${clickTarget.description}`
+// Observational login with step-by-step verification
+const performObservationalLogin = async (
+  page: Page, 
+  credentials: any, 
+  startStep: number, 
+  actionsTaken: any[], 
+  screenshots: string[]
+): Promise<{success: boolean, error?: string, nextStep: number}> => {
+  
+  let currentStep = startStep;
+  
+  try {
+    // Step: Fill email field
+    currentStep++;
+    console.log(`Step ${currentStep}: Filling email field`);
+    
+    const emailField = page.locator('input[type="email"], input[name="email"], input[name="username"]').first();
+    await emailField.waitFor({ state: 'visible', timeout: 5000 });
+    
+    // Use triple-click method for React forms
+    await emailField.click({ clickCount: 3 });
+    await page.waitForTimeout(200);
+    await page.keyboard.type(credentials.username);
+    await page.waitForTimeout(200);
+    await page.keyboard.press('Tab');
+    await page.waitForTimeout(1000);
+    
+    // Observe after email entry
+    const emailObservation = await observePage(page, 'after_email_entry');
+    const emailScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-email-entry`, screenshots);
+    
+    actionsTaken.push({
+      step: currentStep,
+      action: `Fill email field with: ${credentials.username}`,
+      observation: emailObservation.summary,
+      decision: emailObservation.hasErrors ? 'Email entry failed - checking for errors' : 'Email entered successfully, proceeding to password',
+      screenshot: emailScreenshot,
     });
     
-    actions.push({
-      type: 'screenshot',
-      description: 'Take screenshot after click',
-      saveAs: 'after-click'
+    if (emailObservation.hasErrors) {
+      return { success: false, error: `Email entry failed: ${emailObservation.errors.join(', ')}`, nextStep: currentStep };
+    }
+    
+    // Step: Fill password field
+    currentStep++;
+    console.log(`Step ${currentStep}: Filling password field`);
+    
+    const passwordField = page.locator('input[type="password"]').first();
+    await passwordField.waitFor({ state: 'visible', timeout: 5000 });
+    
+    await passwordField.click();
+    await passwordField.clear();
+    await passwordField.fill(credentials.password);
+    await page.waitForTimeout(500);
+    
+    // Observe after password entry
+    const passwordObservation = await observePage(page, 'after_password_entry');
+    const passwordScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-password-entry`, screenshots);
+    
+    actionsTaken.push({
+      step: currentStep,
+      action: 'Fill password field',
+      observation: passwordObservation.summary,
+      decision: 'Password entered, proceeding to submit',
+      screenshot: passwordScreenshot,
     });
-  }
-
-  // Generic screenshot
-  else if (lowerPrompt.includes('screenshot')) {
-    actions.push({
-      type: 'screenshot',
-      description: 'Take screenshot of current page',
-      saveAs: 'page-screenshot'
+    
+    // Step: Submit login form
+    currentStep++;
+    console.log(`Step ${currentStep}: Submitting login form`);
+    
+    const submitButton = page.locator('button:has-text("Sign In"), button:has-text("Sign in"), button[type="submit"]').first();
+    await submitButton.waitFor({ state: 'visible', timeout: 5000 });
+    await submitButton.click();
+    
+    // Wait for response and observe
+    await page.waitForTimeout(5000);
+    
+    const submitObservation = await observePage(page, 'after_login_submit');
+    const submitScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-login-submit`, screenshots);
+    
+    // Determine if login was successful
+    const loginSuccessful = !submitObservation.isLoginPage && !submitObservation.hasErrors;
+    
+    actionsTaken.push({
+      step: currentStep,
+      action: 'Submit login form',
+      observation: submitObservation.summary,
+      decision: loginSuccessful ? 'Login successful - redirected from login page' : 'Login failed - still on login page or errors present',
+      screenshot: submitScreenshot,
     });
+    
+    if (!loginSuccessful) {
+      const errorMessage = submitObservation.hasErrors ? 
+        submitObservation.errors.join(', ') : 
+        'Still on login page after submission';
+      return { success: false, error: errorMessage, nextStep: currentStep };
+    }
+    
+    return { success: true, nextStep: currentStep };
+    
+  } catch (error: any) {
+    return { success: false, error: error.message, nextStep: currentStep };
   }
-
-  return actions;
 };
 
-const extractSearchTerm = (prompt: string): string => {
-  // Extract text between quotes or after "search"
-  const quoteMatch = prompt.match(/"([^"]+)"/);
-  if (quoteMatch) return quoteMatch[1];
-  
-  const searchMatch = prompt.match(/search\s+(?:for\s+)?["']?([^"'\n]+)["']?/i);
-  if (searchMatch) return searchMatch[1].trim();
-  
-  return 'test search'; // fallback
-};
-
-const extractClickTarget = (prompt: string): {selector: string, description: string} => {
-  // Simple extraction - in a real system, this would be more sophisticated
-  if (prompt.includes('button')) {
-    return { selector: 'button', description: 'button' };
-  }
-  if (prompt.includes('link')) {
-    return { selector: 'a', description: 'link' };
-  }
-  return { selector: '*[role="button"], button, a', description: 'clickable element' };
-};
-
-const executeAction = async (
+// Observational search with verification
+const performObservationalSearch = async (
   page: Page, 
-  action: BrowserAction, 
-  screenshots: Array<{name: string, s3Url: string, description: string, timestamp: string}>,
-  extractedData: Record<string, any>
-): Promise<void> => {
-  console.log(`Executing action: ${action.type} - ${action.description}`);
-
-  switch (action.type) {
-    case 'navigate':
-      if (!action.url) throw new Error('URL required for navigate action');
-      await page.goto(action.url, { waitUntil: 'networkidle', timeout: action.timeout || 30000 });
-      break;
-
-    case 'click':
-      if (!action.selector) throw new Error('Selector required for click action');
-      await page.click(action.selector, { timeout: action.timeout || 10000 });
-      break;
-
-    case 'type':
-      if (!action.selector || !action.value) throw new Error('Selector and value required for type action');
-      await page.fill(action.selector, action.value, { timeout: action.timeout || 10000 });
-      break;
-
-    case 'wait':
-      if (action.selector) {
-        await page.waitForSelector(action.selector, { timeout: action.timeout || 10000 });
-      } else {
-        await page.waitForTimeout(action.timeout || 1000);
-      }
-      break;
-
-    case 'scroll':
-      if (action.selector) {
-        await page.locator(action.selector).scrollIntoViewIfNeeded();
-      } else {
-        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-      }
-      break;
-
-    case 'select':
-      if (!action.selector || !action.value) throw new Error('Selector and value required for select action');
-      await page.selectOption(action.selector, action.value);
-      break;
-
-    case 'screenshot':
-      const screenshot = await page.screenshot({ 
-        fullPage: true, 
-        type: 'png',
-      });
-      const screenshotName = action.saveAs || `screenshot-${Date.now()}`;
-      const s3Url = await saveScreenshotToS3(screenshot, screenshotName, action.description);
-      screenshots.push({
-        name: screenshotName,
-        s3Url,
-        description: action.description,
-        timestamp: new Date().toISOString(),
-      });
-      break;
-
-    case 'extract_text':
-      if (!action.selector) throw new Error('Selector required for extract_text action');
-      const text = await page.locator(action.selector).textContent();
-      const dataKey = action.saveAs || 'extracted_text';
-      extractedData[dataKey] = text;
-      break;
-
-    case 'check_element':
-      if (!action.selector) throw new Error('Selector required for check_element action');
-      const elementExists = await page.locator(action.selector).count() > 0;
-      const checkKey = action.saveAs || 'element_check';
-      extractedData[checkKey] = elementExists;
-      break;
-
-    case 'custom_js':
-      if (!action.script) throw new Error('Script required for custom_js action');
-      const jsResult = await page.evaluate(action.script);
-      const jsKey = action.saveAs || 'js_result';
-      extractedData[jsKey] = jsResult;
-      break;
-
-    default:
-      throw new Error(`Unknown action type: ${action.type}`);
+  searchTerm: string, 
+  startStep: number, 
+  actionsTaken: any[], 
+  screenshots: string[]
+): Promise<{success: boolean, error?: string, nextStep: number}> => {
+  
+  let currentStep = startStep;
+  
+  try {
+    // First observe if search functionality is available
+    const preSearchObservation = await observePage(page, 'before_search');
+    
+    if (!preSearchObservation.hasSearchForm) {
+      return { success: false, error: 'No search functionality found on page', nextStep: currentStep };
+    }
+    
+    currentStep++;
+    console.log(`Step ${currentStep}: Performing search for "${searchTerm}"`);
+    
+    const searchField = page.locator('input[type="search"], input[name="search"], input[placeholder*="search" i]').first();
+    await searchField.waitFor({ state: 'visible', timeout: 5000 });
+    
+    await searchField.click();
+    await searchField.clear();
+    await searchField.fill(searchTerm);
+    await page.keyboard.press('Enter');
+    
+    // Wait for search results and observe
+    await page.waitForTimeout(3000);
+    
+    const searchObservation = await observePage(page, 'after_search');
+    const searchScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-search-results`, screenshots);
+    
+    actionsTaken.push({
+      step: currentStep,
+      action: `Search for: ${searchTerm}`,
+      observation: searchObservation.summary,
+      decision: 'Search completed, results should be visible',
+      screenshot: searchScreenshot,
+    });
+    
+    return { success: true, nextStep: currentStep };
+    
+  } catch (error: any) {
+    return { success: false, error: error.message, nextStep: currentStep };
   }
+};
 
-  // Wait a bit after each action for stability
-  await page.waitForTimeout(500);
+// Capture and store screenshot
+const captureAndStoreScreenshot = async (page: Page, name: string, screenshots: string[]): Promise<string> => {
+  try {
+    const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
+    const s3Url = await saveScreenshotToS3(screenshot, name, `Screenshot: ${name}`);
+    screenshots.push(s3Url);
+    return s3Url;
+  } catch (error) {
+    console.error(`Failed to capture screenshot ${name}:`, error);
+    return '';
+  }
 };
 
 const saveScreenshotToS3 = async (screenshot: Buffer, name: string, description: string): Promise<string> => {
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${name}-${timestamp}.png`;
-    const key = `${process.env.JOB_ID || 'unknown'}/${filename}`;
+    const key = `qa/${process.env.JOB_ID || 'unknown'}/${filename}`;
 
     await s3Client.send(new PutObjectCommand({
       Bucket: process.env.RESULTS_BUCKET!,
@@ -882,73 +934,113 @@ const performLogin = async (page: Page, credentials: any): Promise<void> => {
   }
 };
 
-// Flexible Browser Agent
-const flexibleBrowserAgent = new Agent({
-  name: 'Flexible Browser Agent',
+// Agent with observational capabilities and visual decision making
+const observationalBrowserAgent = new Agent({
+  name: 'Observational Browser Agent',
   instructions: `
-    You are a flexible browser automation assistant that can perform a wide variety of web tasks based on natural language instructions.
+    You are an observational browser automation assistant that can SEE and ANALYZE what happens on web pages, 
+    just like how you analyze web search results. You make decisions based on what you actually observe, 
+    not assumptions about what should have happened.
     
-    ## Capabilities:
-    - **Navigation**: Visit any website
-    - **Search**: Perform searches on Google, Bing, or site-specific search
-    - **Form Interaction**: Fill forms, submit data, select options
-    - **Authentication**: Login to websites when credentials are provided
-    - **Screenshots**: Capture screenshots of pages, elements, or results
-    - **Data Extraction**: Extract text, check for elements, get page information
-    - **Custom Actions**: Perform specific clicks, scrolling, waiting
+    ## Core Principle: OBSERVE THEN DECIDE
     
-    ## Approach:
-    1. **Understand the Request**: Parse what the user wants to accomplish
-    2. **Plan Actions**: Break down the task into browser actions
-    3. **Execute Safely**: Perform actions with appropriate waits and error handling
-    4. **Capture Results**: Take screenshots and extract data as requested
-    5. **Report Back**: Provide clear results and any issues encountered
+    After each action, you will receive:
+    1. **Screenshot** - Visual evidence of the current page state
+    2. **Page Analysis** - Detailed breakdown of what's on the page
+    3. **Error Detection** - Any error messages or issues found
+    4. **Success Indicators** - Evidence of successful actions
     
-    ## Common Tasks:
+    ## Your Process:
     
-    ### Search Tasks
-    - "Search Google for X and screenshot the results"
-    - "Go to YouTube and search for tutorials on Y"
-    - "Search Amazon for product Z and get the price"
+    ### 1. EXECUTE Action
+    Perform the requested browser action (navigate, fill form, click, etc.)
     
-    ### Navigation Tasks  
-    - "Go to website.com and take a screenshot"
-    - "Navigate through the menu to find the contact page"
-    - "Check if the login page loads correctly"
+    ### 2. OBSERVE Result  
+    Analyze the screenshot and page state to understand what actually happened:
+    - Are we still on the same page?
+    - Did any error messages appear?
+    - Did the action have the expected effect?
+    - What is the current state of form fields?
     
-    ### Form Tasks
-    - "Fill out the contact form with test data"
-    - "Subscribe to the newsletter with test@example.com"
-    - "Add an item to the shopping cart"
+    ### 3. DECIDE Next Step
+    Based on your observation, decide:
+    - Was the action successful?
+    - Should we retry with a different approach?
+    - Should we proceed to the next step?
+    - Should we abort due to errors?
     
-    ### Authentication Tasks
-    - "Login to the dashboard and screenshot the home page"
-    - "Sign into the account and check user profile"
+    ### 4. REPORT Findings
+    Clearly communicate what you observed and why you made each decision.
     
-    ### Data Extraction Tasks
-    - "Get the page title and main heading text"
-    - "Check if the shopping cart icon shows item count"
-    - "Extract the list of product names from the catalog"
+    ## Example Decision Making:
+    
+    **Scenario**: Attempting to log in
+    
+    **Action**: Fill email field with credentials
+    **Observation**: Screenshot shows red error "Please enter a valid email address"
+    **Decision**: Email entry failed, need to retry or use different format
+    **Next Action**: Try different email format or report login failure
+    
+    vs.
+    
+    **Action**: Fill email field with credentials  
+    **Observation**: Screenshot shows field filled correctly, no errors
+    **Decision**: Email entry successful, proceed to password
+    **Next Action**: Fill password field
+    
+    ## Login Success Verification:
+    
+    **NEVER assume login succeeded just because you clicked submit.**
+    
+    Always verify by checking:
+    - Are we still on a login page? (URL contains 'login', 'auth', or 'signin')
+    - Are there any error messages visible?
+    - Did the page title or content change to indicate success?
+    - Are we now on a dashboard or main application page?
+    
+    ## Search Success Verification:
+    
+    **NEVER assume search succeeded just because you pressed Enter.**
+    
+    Always verify by checking:
+    - Did the page content change?
+    - Are search results visible?
+    - Is there a "no results" message?
+    - Did the URL change to include search parameters?
     
     ## Response Format:
-    Provide clear, actionable results including:
-    - What actions were performed successfully
-    - Any issues encountered
-    - Screenshots taken
-    - Data extracted
-    - Suggestions for follow-up actions
     
-    ## Key Principles:
-    - **User-Friendly**: Interpret natural language instructions flexibly
-    - **Safe**: Always use test data, avoid harmful actions
-    - **Thorough**: Take screenshots and extract data as requested
-    - **Informative**: Explain what happened and why
-    - **Adaptable**: Handle different website structures gracefully
+    For each major step, report:
     
-    Remember: You can handle both structured action requests and natural language instructions. Be creative in interpreting what the user wants to accomplish!
+    **🎯 Action Taken**: [What you did]
+    **👁️ Observation**: [What you saw in the screenshot/page analysis]  
+    **🧠 Decision**: [What you decided based on the observation]
+    **➡️ Next Step**: [What you'll do next]
+    
+    ## Final Assessment:
+    
+    **✅ SUCCESS CRITERIA**:
+    - Login: Successfully reached a non-login page without errors
+    - Search: Search results are visible or clear "no results" message
+    - Navigation: Reached the intended page
+    
+    **❌ FAILURE INDICATORS**:
+    - Still on login page after submission
+    - Error messages present
+    - Unexpected page state
+    - Unable to complete requested actions
+    
+    ## Key Principle:
+    **Trust what you observe, not what you expected to happen.**
+    
+    If you see error messages, acknowledge them.
+    If you're still on a login page, admit the login failed.
+    If search results aren't visible, don't claim the search succeeded.
+    
+    Be honest about what you can actually see and accomplish.
   `,
   model: anthropic('claude-4-sonnet-20250514'),
-  tools: { flexibleBrowserTool },
+  tools: { observationalBrowserTool },
   memory: new Memory({
     storage: new DynamoDBStore({
       name: "dynamodb",
@@ -993,7 +1085,7 @@ export const handler = async (event: any): Promise<any> => {
 
     console.log(`Processing flexible browser automation with thread ID: ${threadId}, job ID: ${jobId}`);
 
-    const result = await flexibleBrowserAgent.generate(event.input, {
+    const result = await observationalBrowserAgent.generate(event.input, {
       threadId,
       resourceId: "flexible-browser-automation",
     });
