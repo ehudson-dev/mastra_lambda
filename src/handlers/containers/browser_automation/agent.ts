@@ -2,7 +2,7 @@
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { DynamoDBStore } from "@mastra/dynamodb";
-import { createRateLimitedAnthropic } from "./rate_limiting";
+import { createRateLimitedAnthropic } from "./rate_limiting.js";
 import {
   findAndTypeTool,
   findAndClickTool,

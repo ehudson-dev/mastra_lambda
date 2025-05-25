@@ -1,7 +1,7 @@
 // src/handlers/containers/browser_automation/tools/find-and-type.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { BrowserContextManager } from '../../browser_context_manager';
+import { BrowserContextManager } from '../../browser_context_manager.js';
 
 export const findAndTypeTool = createTool({
   id: "find-and-type",

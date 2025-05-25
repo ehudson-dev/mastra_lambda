@@ -1,7 +1,7 @@
 // src/handlers/containers/browser_automation/tools/find-and-click.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { BrowserContextManager } from '../../browser_context_manager';
+import { BrowserContextManager } from '../../browser_context_manager.js';
 
 export const findAndClickTool = createTool({
   id: "find-and-click",

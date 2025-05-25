@@ -1,6 +1,6 @@
 // src/handlers/containers/browser_automation/index.ts
-import { BrowserContextManager } from "./browser_context_manager";
-import { genericBrowserAgent } from "./agent";
+import { BrowserContextManager } from "./browser_context_manager.js";
+import { genericBrowserAgent } from "./agent.js";
 
 // Main Lambda handler
 export const handler = async (event: any): Promise<any> => {

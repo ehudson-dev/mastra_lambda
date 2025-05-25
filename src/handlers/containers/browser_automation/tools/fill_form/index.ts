@@ -1,7 +1,7 @@
 // src/handlers/containers/browser_automation/tools/fill-form.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { BrowserContextManager } from '../../browser_context_manager';
+import { BrowserContextManager } from '../../browser_context_manager.js';
 
 export const fillFormTool = createTool({
   id: "fill-form",

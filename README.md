@@ -20,7 +20,7 @@ If you want to start a background job:
 
 ```
 
-If you want to directly invoke an agent (the only agent using this format is the example weather aget from mastra.ai):
+If you want to directly invoke an agent (the only agent using this format is the example weather agent from mastra.ai):
 
 ```
 {
@@ -34,23 +34,6 @@ To check the status of a job:
 
 `GET /api/job/{job_id}`
 
-
-## Agents
-
-### Browser Automation Agent
-
-This agent runs in a containerized Lambda function. It uses claude to navigate the web and interact with web applications through a generic set of web tools.
-
-Features:
-
-- Adaptive rate limiting to avoid input token overconsumption
-- Multi step web workflow support
-- Outputs report and screenshots to S3
-
-### Weather Agent
-
-This is the example agent from mastra.ai. It is used here as an example how to have a directly invoked agent in a lambda function in a request/response model.
-
 ## Storage
 
 It uses DynamoDB for Mastras storage engine. 
@@ -63,3 +46,114 @@ In your github repo / fork, configure the following environment secrets:
 - `AWS_ACCESS_KEY`
 - `AWS_SECRET_ACCESS_KEY`
 - `ANTHROPIC_API_KEY`
+
+# Browser Automation Module
+
+This directory contains a modular browser automation system built with Mastra.ai and Playwright, designed to run in AWS Lambda containers.
+
+## Directory Structure
+
+```
+src/handlers/containers/browser_automation/
+├── index.ts                    # Main Lambda handler
+├── agent.ts                    # Browser automation agent setup
+├── browser-context-manager.ts  # Browser context lifecycle management
+├── rate-limiting.ts            # Anthropic API rate limiting logic  
+├── types.ts                    # Shared TypeScript interfaces
+├── utils.ts                    # Utility functions (S3 screenshot storage)
+├── tools/                      # Individual browser automation tools
+│   ├── index.ts               # Tool exports
+│   ├── find-elements.ts       # Element finding tool
+│   ├── wait.ts                # Wait/delay tool
+│   ├── screenshot.ts          # Screenshot capture tool
+│   ├── execute-js.ts          # JavaScript execution tool
+│   ├── find-and-type.ts       # Combined find + type tool
+│   ├── find-and-click.ts      # Combined find + click tool
+│   ├── navigate-and-analyze.ts # Navigation + page analysis tool
+│   └── fill-form.ts           # Multi-field form filling tool
+├── package.json
+├── tsconfig.json
+└── Dockerfile
+```
+
+## Key Components
+
+### 1. Browser Context Manager (`browser-context-manager.ts`)
+- Singleton pattern for managing Playwright browser instances
+- Automatic cleanup after 5 minutes of inactivity  
+- Optimized for Lambda container environments
+- Handles browser initialization with appropriate Chrome flags
+
+### 2. Rate Limiting (`rate-limiting.ts`)
+- Intelligent Anthropic API rate limiting
+- Monitors token usage and request counts from response headers
+- Implements adaptive delays and proactive waiting
+- Prevents rate limit violations that could cause job failures
+
+### 3. Tools (`tools/`)
+Each tool is designed for specific browser automation tasks:
+
+- **Bundled Tools** (Preferred - reduce API calls):
+  - `find-and-type.ts` - Find input fields and type in one operation
+  - `find-and-click.ts` - Find clickable elements and click in one operation
+  - `navigate-and-analyze.ts` - Navigate to URL and analyze page structure
+  - `fill-form.ts` - Fill multiple form fields and optionally submit
+
+- **Individual Tools** (Use sparingly):
+  - `find-elements.ts` - Find elements using CSS selectors
+  - `wait.ts` - Add delays for page loading
+  - `screenshot.ts` - Capture screenshots and store in S3
+  - `execute-js.ts` - Execute custom JavaScript in page context
+
+### 4. Agent (`agent.ts`)
+- Mastra Agent configured with specialized browser automation instructions
+- Uses Claude 3-7 Sonnet with efficiency-focused prompting
+- Emphasizes bundled tools to reduce API calls
+- Includes comprehensive CSS selector guidance
+
+### 5. Main Handler (`index.ts`) 
+- Lambda entry point
+- Error handling and response formatting
+- Environment setup for screenshot naming
+- Browser cleanup management
+
+## Usage
+
+The module accepts natural language prompts for browser automation:
+
+```json
+{
+  "input": "Go to example.com, fill out the contact form with test data, and take a screenshot",
+  "thread_id": "optional-thread-id",
+  "jobId": "unique-job-id"
+}
+```
+
+## Development
+
+### Building
+```bash
+npm run build
+```
+
+### Key Features
+- **Modular Design**: Each component has a single responsibility
+- **Type Safety**: Comprehensive TypeScript interfaces
+- **Rate Limiting**: Intelligent API usage management  
+- **Error Handling**: Robust error recovery at tool and agent levels
+- **Resource Management**: Automatic browser cleanup
+- **S3 Integration**: Screenshot storage with metadata
+
+### CSS Selector Guidelines
+The agent is trained to use standard CSS selectors only:
+
+✅ **Valid**: `input[type="email"]`, `.class-name`, `#element-id`  
+❌ **Invalid**: `:contains()`, `:visible`, `:eq()` (jQuery syntax)
+
+### Adding New Tools
+1. Create new tool file in `tools/` directory
+2. Follow existing tool patterns with Zod schemas
+3. Export from `tools/index.ts`
+4. Add to agent configuration in `agent.ts`
+
+This modular structure makes the codebase maintainable, testable, and easy to extend with additional browser automation capabilities.
