@@ -156,7 +156,7 @@ const processRecord = async (record: SQSRecord): Promise<void> => {
 const getFunctionName = (containerName: string): string | null => {
   // Map container names to actual Lambda function names
   const containerMapping: Record<string, string> = {
-    qa: process.env.QA_CONTAINER_FUNCTION_NAME!,
+    browser_automation: process.env.BROWSER_AUTOMATION_FUNCTION_NAME!,
     // Add more container mappings here as needed
     // 'web-scraper': process.env.WEB_SCRAPER_FUNCTION_NAME!,
     // 'pdf-processor': process.env.PDF_PROCESSOR_FUNCTION_NAME!,

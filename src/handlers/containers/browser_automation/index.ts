@@ -317,7 +317,7 @@ const saveScreenshotToS3 = async (
   try {
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `${name}-${timestamp}.png`;
-    const key = `qa/${process.env.JOB_ID || "unknown"}/${filename}`;
+    const key = `browser_automation/${process.env.JOB_ID || "unknown"}/${filename}`;
 
     await s3Client.send(
       new PutObjectCommand({
@@ -815,7 +815,7 @@ const checkAndWaitForRateLimit = async (): Promise<void> => {
   }
 
   // Calculate minimum tokens needed for next call (estimated)
-  const MIN_TOKENS_NEEDED = 4000; // Conservative estimate based on your logs
+  const MIN_TOKENS_NEEDED = 6000; // Conservative estimate based on your logs
   const MIN_REQUESTS_NEEDED = 1;
 
   // Check input tokens
@@ -918,7 +918,7 @@ BUNDLED TOOLS (Preferred - Fewer API calls):
 - **fillForm**: Fill multiple form fields in one operation
 
 INDIVIDUAL TOOLS (Use sparingly):
-- navigate, wait, screenshot, executeJS, findElements
+- wait, screenshot, executeJS, findElements
 
 VALID CSS SELECTORS:
 ✅ input[type="email"]

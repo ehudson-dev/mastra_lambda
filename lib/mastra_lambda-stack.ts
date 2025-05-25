@@ -179,7 +179,7 @@ export class MastraLambdaStack extends cdk.Stack {
     );
 
     // Container QA function (the actual worker)
-    const qaContainerFunction = new lambda.Function(
+    const browserAutomationContainerFunction = new lambda.Function(
       this,
       "BrowserAutomationFunction",
       {
@@ -217,7 +217,7 @@ export class MastraLambdaStack extends cdk.Stack {
           ANTHROPIC_API_KEY: anthropic_api_key,
           MASTRA_TABLE_NAME: storageTable.tableName,
           RESULTS_BUCKET: resultsBucket.bucketName,
-          QA_CONTAINER_FUNCTION_NAME: qaContainerFunction.functionName,
+          BROWSER_AUTOMATION_FUNCTION_NAME: browserAutomationContainerFunction.functionName,
         },
       }
     );
