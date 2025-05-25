@@ -183,6 +183,8 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
     // Final observation
     const finalObservation = await observePage(page, 'final_state');
     const finalScreenshot = await captureAndStoreScreenshot(page, 'final-state', screenshots);
+
+    screenshots.push(finalScreenshot);
     
     result.finalObservation = finalObservation.summary;
     result.success = errors.length === 0 && !finalObservation.hasErrors;
@@ -266,9 +268,6 @@ const observePage = async (page: Page, context: string): Promise<any> => {
     // **NEW: Check for loading/processing indicators**
     const loadingIndicators = [] as any[];
     const loadingSelectors = [
-      'button:contains("Signing in")', 
-      'button:contains("Loading")',
-      'button:contains("Processing")',
       '.loading', '.spinner', '.processing',
       '[class*="loading"]', '[class*="spinner"]'
     ];
