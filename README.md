@@ -119,7 +119,7 @@ Each tool is designed for specific browser automation tasks:
 
 ### 4. Agent (`/agent`)
 - Mastra Agent configured with specialized browser automation instructions
-- Uses Claude 3-7 Sonnet with efficiency-focused prompting
+- Uses Claude 3-7 Sonnet because Claude 4 does not yet support the beta header `token-efficient-tools-2025-02-19`, if you don't care about this, you can use Claude 4
 - Emphasizes bundled tools to reduce API calls
 - Includes comprehensive CSS selector guidance
 
