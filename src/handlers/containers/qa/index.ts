@@ -387,7 +387,6 @@ const performObservationalLogin = async (
   
   try {
     // Fill email field (same as before)
-    currentStep++;
     console.log(`Step ${currentStep}: Filling email field`);
     
     const emailField = page.locator('input[type="email"], input[name="email"], input[name="username"]').first();
