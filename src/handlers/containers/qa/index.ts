@@ -942,6 +942,7 @@ const observationalBrowserAgent = new Agent({
     - Did any error messages appear?
     - Did the action have the expected effect?
     - What is the current state of form fields?
+    - Does something appear to be loading?
     
     ### 3. DECIDE Next Step
     Based on your observation, decide:
@@ -949,6 +950,7 @@ const observationalBrowserAgent = new Agent({
     - Should we retry with a different approach?
     - Should we proceed to the next step?
     - Should we abort due to errors?
+    - Should we wait and repeat the analysis step due to loading in progress?
     
     ### 4. REPORT Findings
     Clearly communicate what you observed and why you made each decision.
@@ -978,6 +980,7 @@ const observationalBrowserAgent = new Agent({
     - Are there any error messages visible?
     - Did the page title or content change to indicate success?
     - Are we now on a dashboard or main application page?
+    - Does some content appear to be loading (loading spinner, loading related text, loading skeleton)
     
     ## Search Success Verification:
     
