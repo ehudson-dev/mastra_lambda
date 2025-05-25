@@ -1,12 +1,18 @@
 // src/handlers/containers/qa/index.ts - Generic Browser Automation Toolkit
-import { chromium, Page, Browser, BrowserContext, Locator } from 'playwright-core';
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { Agent } from '@mastra/core/agent';
-import { Memory } from '@mastra/memory';
-import { DynamoDBStore } from '@mastra/dynamodb';
-import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import {
+  chromium,
+  Page,
+  Browser,
+  BrowserContext,
+  Locator,
+} from "playwright-core";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { Agent } from "@mastra/core/agent";
+import { Memory } from "@mastra/memory";
+import { DynamoDBStore } from "@mastra/dynamodb";
+import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const s3Client = new S3Client({
   region: process.env.REGION || process.env.AWS_REGION,
@@ -29,8 +35,8 @@ class BrowserContextManager {
   }
 
   async getPage(): Promise<Page> {
-    if (this.page && (Date.now() - this.lastActivity > this.TIMEOUT_MS)) {
-      console.log('Browser context stale, recreating...');
+    if (this.page && Date.now() - this.lastActivity > this.TIMEOUT_MS) {
+      console.log("Browser context stale, recreating...");
       await this.cleanup();
     }
 
@@ -43,43 +49,44 @@ class BrowserContextManager {
   }
 
   private async initializeBrowser(): Promise<void> {
-    console.log('Initializing browser context...');
-    
+    console.log("Initializing browser context...");
+
     this.browser = await chromium.launch({
       headless: true,
       args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor',
-        '--disable-extensions',
-        '--disable-plugins',
-        '--single-process',
-        '--no-zygote',
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-web-security",
+        "--disable-features=VizDisplayCompositor",
+        "--disable-extensions",
+        "--disable-plugins",
+        "--single-process",
+        "--no-zygote",
       ],
     });
 
     this.context = await this.browser.newContext({
       viewport: { width: 1280, height: 1024 },
-      userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      userAgent:
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     });
 
     this.page = await this.context.newPage();
-    
-    this.page.on('pageerror', (error) => {
-      console.error('Page error:', error);
+
+    this.page.on("pageerror", (error) => {
+      console.error("Page error:", error);
     });
   }
 
   async cleanup(): Promise<void> {
-    console.log('Cleaning up browser context...');
+    console.log("Cleaning up browser context...");
     try {
       if (this.context) await this.context.close();
       if (this.browser) await this.browser.close();
     } catch (error) {
-      console.error('Error during cleanup:', error);
+      console.error("Error during cleanup:", error);
     }
     this.browser = null;
     this.context = null;
@@ -93,12 +100,18 @@ class BrowserContextManager {
 
 // Generic Navigation Tool
 const navigateTool = createTool({
-  id: 'navigate',
-  description: 'Navigate to a URL and wait for the page to load',
+  id: "navigate",
+  description: "Navigate to a URL and wait for the page to load",
   inputSchema: z.object({
-    url: z.string().describe('URL to navigate to'),
-    waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle']).default('networkidle').describe('When to consider navigation complete'),
-    timeout: z.number().default(30000).describe('Navigation timeout in milliseconds'),
+    url: z.string().describe("URL to navigate to"),
+    waitUntil: z
+      .enum(["load", "domcontentloaded", "networkidle"])
+      .default("networkidle")
+      .describe("When to consider navigation complete"),
+    timeout: z
+      .number()
+      .default(30000)
+      .describe("Navigation timeout in milliseconds"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -110,30 +123,30 @@ const navigateTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
+
       console.log(`Navigating to: ${context.url}`);
-      await page.goto(context.url, { 
-        waitUntil: context.waitUntil as any, 
-        timeout: context.timeout 
+      await page.goto(context.url, {
+        waitUntil: context.waitUntil as any,
+        timeout: context.timeout,
       });
-      
+
       const title = await page.title();
       const url = page.url();
-      
+
       browserManager.updateActivity();
       console.log(`Navigation complete: ${title} (${url})`);
-      
+
       return {
         success: true,
         url,
         title,
       };
     } catch (error: any) {
-      console.error('Navigation failed:', error);
+      console.error("Navigation failed:", error);
       return {
         success: false,
         url: context.url,
-        title: '',
+        title: "",
         error: error.message,
       };
     }
@@ -142,12 +155,15 @@ const navigateTool = createTool({
 
 // Generic Element Finding Tool
 const findElementsTool = createTool({
-  id: 'find-elements',
-  description: 'Find elements on the page using CSS selectors or text content',
+  id: "find-elements",
+  description: "Find elements on the page using CSS selectors or text content",
   inputSchema: z.object({
-    selector: z.string().describe('CSS selector to find elements'),
-    waitFor: z.boolean().default(false).describe('Whether to wait for elements to appear'),
-    timeout: z.number().default(5000).describe('Timeout for waiting'),
+    selector: z.string().describe("CSS selector to find elements"),
+    waitFor: z
+      .boolean()
+      .default(false)
+      .describe("Whether to wait for elements to appear"),
+    timeout: z.number().default(5000).describe("Timeout for waiting"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -158,27 +174,31 @@ const findElementsTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
+
       console.log(`Finding elements: ${context.selector}`);
-      
+
       if (context.waitFor) {
         try {
-          await page.waitForSelector(context.selector, { timeout: context.timeout });
+          await page.waitForSelector(context.selector, {
+            timeout: context.timeout,
+          });
         } catch (e) {
           console.log(`Wait timeout for selector: ${context.selector}`);
         }
       }
-      
+
       const elements = await page.locator(context.selector).all();
-      console.log(`Found ${elements.length} elements matching: ${context.selector}`);
+      console.log(
+        `Found ${elements.length} elements matching: ${context.selector}`
+      );
       browserManager.updateActivity();
-      
+
       return {
         success: true,
         count: elements.length,
       };
     } catch (error: any) {
-      console.error('Find elements failed:', error);
+      console.error("Find elements failed:", error);
       return {
         success: false,
         count: 0,
@@ -191,14 +211,23 @@ const findElementsTool = createTool({
 
 // Generic Click Tool
 const clickTool = createTool({
-  id: 'click',
-  description: 'Click on an element using CSS selector',
+  id: "click",
+  description: "Click on an element using CSS selector",
   inputSchema: z.object({
-    selector: z.string().describe('CSS selector for element to click'),
-    elementIndex: z.number().default(0).describe('Index of element if multiple match (0 = first)'),
-    waitForElement: z.boolean().default(true).describe('Wait for element to be visible before clicking'),
-    timeout: z.number().default(5000).describe('Timeout for waiting'),
-    force: z.boolean().default(false).describe('Force click even if element is not ready'),
+    selector: z.string().describe("CSS selector for element to click"),
+    elementIndex: z
+      .number()
+      .default(0)
+      .describe("Index of element if multiple match (0 = first)"),
+    waitForElement: z
+      .boolean()
+      .default(true)
+      .describe("Wait for element to be visible before clicking"),
+    timeout: z.number().default(5000).describe("Timeout for waiting"),
+    force: z
+      .boolean()
+      .default(false)
+      .describe("Force click even if element is not ready"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -210,12 +239,16 @@ const clickTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
-      console.log(`Clicking: ${context.selector} (index: ${context.elementIndex})`);
-      
+
+      console.log(
+        `Clicking: ${context.selector} (index: ${context.elementIndex})`
+      );
+
       if (context.waitForElement) {
         try {
-          await page.waitForSelector(context.selector, { timeout: context.timeout });
+          await page.waitForSelector(context.selector, {
+            timeout: context.timeout,
+          });
         } catch (e) {
           console.log(`Element not found within timeout: ${context.selector}`);
           return {
@@ -226,9 +259,9 @@ const clickTool = createTool({
           };
         }
       }
-      
+
       const element = page.locator(context.selector).nth(context.elementIndex);
-      
+
       if (!(await element.count())) {
         return {
           success: false,
@@ -237,19 +270,19 @@ const clickTool = createTool({
           error: `No element found at index ${context.elementIndex}`,
         };
       }
-      
+
       await element.click({ force: context.force });
-      
+
       browserManager.updateActivity();
       console.log(`Successfully clicked: ${context.selector}`);
-      
+
       return {
         success: true,
         elementFound: true,
         clicked: true,
       };
     } catch (error: any) {
-      console.error('Click failed:', error);
+      console.error("Click failed:", error);
       return {
         success: false,
         elementFound: true,
@@ -262,15 +295,21 @@ const clickTool = createTool({
 
 // Generic Type Tool
 const typeTool = createTool({
-  id: 'type',
-  description: 'Type text into an input field',
+  id: "type",
+  description: "Type text into an input field",
   inputSchema: z.object({
-    selector: z.string().describe('CSS selector for input element'),
-    text: z.string().describe('Text to type'),
-    elementIndex: z.number().default(0).describe('Index of element if multiple match'),
-    clear: z.boolean().default(true).describe('Clear field before typing'),
-    pressEnter: z.boolean().default(false).describe('Press Enter after typing'),
-    delay: z.number().default(0).describe('Delay between keystrokes in milliseconds'),
+    selector: z.string().describe("CSS selector for input element"),
+    text: z.string().describe("Text to type"),
+    elementIndex: z
+      .number()
+      .default(0)
+      .describe("Index of element if multiple match"),
+    clear: z.boolean().default(true).describe("Clear field before typing"),
+    pressEnter: z.boolean().default(false).describe("Press Enter after typing"),
+    delay: z
+      .number()
+      .default(0)
+      .describe("Delay between keystrokes in milliseconds"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -282,11 +321,13 @@ const typeTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
-      console.log(`Typing into: ${context.selector} (text: "${context.text.substring(0, 50)}...")`);
-      
+
+      console.log(
+        `Typing into: ${context.selector} (text: "${context.text.substring(0, 50)}...")`
+      );
+
       const element = page.locator(context.selector).nth(context.elementIndex);
-      
+
       if (!(await element.count())) {
         return {
           success: false,
@@ -295,33 +336,33 @@ const typeTool = createTool({
           error: `Element not found: ${context.selector}`,
         };
       }
-      
-      await element.waitFor({ state: 'visible', timeout: 5000 });
-      
+
+      await element.waitFor({ state: "visible", timeout: 5000 });
+
       if (context.clear) {
         await element.clear();
       }
-      
+
       if (context.delay > 0) {
         await element.type(context.text, { delay: context.delay });
       } else {
         await element.fill(context.text);
       }
-      
+
       if (context.pressEnter) {
-        await element.press('Enter');
+        await element.press("Enter");
       }
-      
+
       browserManager.updateActivity();
       console.log(`Successfully typed into: ${context.selector}`);
-      
+
       return {
         success: true,
         elementFound: true,
         typed: true,
       };
     } catch (error: any) {
-      console.error('Type failed:', error);
+      console.error("Type failed:", error);
       return {
         success: false,
         elementFound: false,
@@ -334,8 +375,8 @@ const typeTool = createTool({
 
 // Generic Wait Tool
 const waitTool = createTool({
-  id: 'wait',
-  description: 'Wait for 10 seconds',
+  id: "wait",
+  description: "Wait for 10 seconds",
   outputSchema: z.object({
     success: z.boolean(),
     waited: z.number(),
@@ -346,20 +387,20 @@ const waitTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const startTime = Date.now();
-      
-      await new Promise(resolve => setTimeout(resolve, 10000))
+
+      await new Promise((resolve) => setTimeout(resolve, 10000));
 
       const waited = Date.now() - startTime;
       browserManager.updateActivity();
       console.log(`Wait completed in ${waited}ms`);
-      
+
       return {
         success: true,
         waited,
         condition: `${context.type}: ${context.value}`,
       };
     } catch (error: any) {
-      console.error('Wait failed:', error);
+      console.error("Wait failed:", error);
       const waited = Date.now() - Date.now();
       return {
         success: false,
@@ -373,13 +414,21 @@ const waitTool = createTool({
 
 // Generic Screenshot Tool
 const screenshotTool = createTool({
-  id: 'screenshot',
-  description: 'Take a screenshot of the current page',
+  id: "screenshot",
+  description: "Take a screenshot of the current page",
   inputSchema: z.object({
-    filename: z.string().describe('Name for the screenshot file'),
-    description: z.string().describe('Description of what the screenshot shows'),
-    fullPage: z.boolean().default(true).describe('Capture full page or just viewport'),
-    element: z.string().optional().describe('CSS selector to screenshot specific element'),
+    filename: z.string().describe("Name for the screenshot file"),
+    description: z
+      .string()
+      .describe("Description of what the screenshot shows"),
+    fullPage: z
+      .boolean()
+      .default(true)
+      .describe("Capture full page or just viewport"),
+    element: z
+      .string()
+      .optional()
+      .describe("CSS selector to screenshot specific element"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -392,26 +441,30 @@ const screenshotTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
+
       console.log(`Taking screenshot: ${context.filename}`);
-      
+
       let screenshot: Buffer;
-      
+
       if (context.element) {
         const element = page.locator(context.element).first();
-        screenshot = await element.screenshot({ type: 'png' });
+        screenshot = await element.screenshot({ type: "png" });
       } else {
-        screenshot = await page.screenshot({ 
-          fullPage: context.fullPage, 
-          type: 'png' 
+        screenshot = await page.screenshot({
+          fullPage: context.fullPage,
+          type: "png",
         });
       }
-      
-      const s3Url = await saveScreenshotToS3(screenshot, context.filename, context.description);
-      
+
+      const s3Url = await saveScreenshotToS3(
+        screenshot,
+        context.filename,
+        context.description
+      );
+
       browserManager.updateActivity();
       console.log(`Screenshot saved: ${s3Url}`);
-      
+
       return {
         success: true,
         filename: context.filename,
@@ -419,11 +472,11 @@ const screenshotTool = createTool({
         description: context.description,
       };
     } catch (error: any) {
-      console.error('Screenshot failed:', error);
+      console.error("Screenshot failed:", error);
       return {
         success: false,
         filename: context.filename,
-        s3Url: '',
+        s3Url: "",
         description: context.description,
         error: error.message,
       };
@@ -433,78 +486,103 @@ const screenshotTool = createTool({
 
 // Page Analysis Tool
 const analyzePageTool = createTool({
-  id: 'analyze-page',
-  description: 'Analyze the current page structure and content',
+  id: "analyze-page",
+  description: "Analyze the current page structure and content",
   inputSchema: z.object({
-    includeText: z.boolean().default(false).describe('Include text content analysis'),
-    includeStructure: z.boolean().default(false).describe('Include HTML structure analysis'),
-    maxTextLength: z.number().default(1000).describe('Maximum length of text content to return'),
+    includeText: z
+      .boolean()
+      .default(false)
+      .describe("Include text content analysis"),
+    includeStructure: z
+      .boolean()
+      .default(false)
+      .describe("Include HTML structure analysis"),
+    maxTextLength: z
+      .number()
+      .default(1000)
+      .describe("Maximum length of text content to return"),
   }),
   outputSchema: z.object({
     url: z.string(),
     title: z.string(),
     textContent: z.string().optional(),
-    forms: z.array(z.object({
-      action: z.string(),
-      method: z.string(),
-      inputs: z.array(z.object({
+    forms: z.array(
+      z.object({
+        action: z.string(),
+        method: z.string(),
+        inputs: z.array(
+          z.object({
+            type: z.string(),
+            name: z.string(),
+            placeholder: z.string(),
+          })
+        ),
+      })
+    ),
+    buttons: z.array(
+      z.object({
+        text: z.string(),
         type: z.string(),
-        name: z.string(),
-        placeholder: z.string(),
-      })),
-    })),
-    buttons: z.array(z.object({
-      text: z.string(),
-      type: z.string(),
-      disabled: z.boolean(),
-    })),
-    links: z.array(z.object({
-      text: z.string(),
-      href: z.string(),
-    })),
-    images: z.array(z.object({
-      src: z.string(),
-      alt: z.string(),
-    })),
+        disabled: z.boolean(),
+      })
+    ),
+    links: z.array(
+      z.object({
+        text: z.string(),
+        href: z.string(),
+      })
+    ),
+    images: z.array(
+      z.object({
+        src: z.string(),
+        alt: z.string(),
+      })
+    ),
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
-      console.log('Analyzing page structure...');
-      
-      const analysis = await page.evaluate((options) => {
-        const result: any = {
-          url: window.location.href,
-          title: document.title,
-          forms: [],
-          buttons: [],
-          links: [],
-          images: [],
-        };
-        
-        if (options.includeText) {
-          result.textContent = document.body.innerText.substring(0, options.maxTextLength);
+
+      console.log("Analyzing page structure...");
+
+      const analysis = await page.evaluate(
+        (options) => {
+          const result: any = {
+            url: window.location.href,
+            title: document.title,
+            forms: [],
+            buttons: [],
+            links: [],
+            images: [],
+          };
+
+          if (options.includeText) {
+            result.textContent = document.body.innerText.substring(
+              0,
+              options.maxTextLength
+            );
+          }
+
+          return result;
+        },
+        {
+          includeText: context.includeText,
+          includeStructure: context.includeStructure,
+          maxTextLength: context.maxTextLength,
         }
-        
-        return result;
-      }, {
-        includeText: context.includeText,
-        includeStructure: context.includeStructure,
-        maxTextLength: context.maxTextLength,
-      });
-      
+      );
+
       browserManager.updateActivity();
-      console.log('Page analysis completed');
-      
+      console.log("Page analysis completed");
+
       return analysis;
     } catch (error: any) {
-      console.error('Page analysis failed:', error);
+      console.error("Page analysis failed:", error);
       return {
-        url: '',
-        title: '',
+        url: "",
+        title: "",
         forms: [],
         buttons: [],
         links: [],
@@ -516,11 +594,14 @@ const analyzePageTool = createTool({
 });
 
 const executeJSTool = createTool({
-  id: 'execute-js',
-  description: 'Execute custom JavaScript code in the page context',
+  id: "execute-js",
+  description: "Execute custom JavaScript code in the page context",
   inputSchema: z.object({
-    script: z.string().describe('JavaScript code to execute'),
-    args: z.array(z.any()).default([]).describe('Arguments to pass to the script'),
+    script: z.string().describe("JavaScript code to execute"),
+    args: z
+      .array(z.any())
+      .default([])
+      .describe("Arguments to pass to the script"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -531,28 +612,30 @@ const executeJSTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
-      console.log(`Executing JavaScript: ${context.script.substring(0, 100)}...`);
-      
+
+      console.log(
+        `Executing JavaScript: ${context.script.substring(0, 100)}...`
+      );
+
       // Create a function wrapper that can be serialized by Playwright
       const result = await page.evaluate(
         ({ script, args }) => {
           // Create and execute the function in the browser context
-          const func = new Function('...args', script);
+          const func = new Function("...args", script);
           return func(...args);
         },
         { script: context.script, args: context.args }
       );
-      
+
       browserManager.updateActivity();
-      console.log('JavaScript execution completed');
-      
+      console.log("JavaScript execution completed");
+
       return {
         success: true,
         result,
       };
     } catch (error: any) {
-      console.error('JavaScript execution failed:', error);
+      console.error("JavaScript execution failed:", error);
       return {
         success: false,
         result: null,
@@ -563,44 +646,56 @@ const executeJSTool = createTool({
 });
 
 // Utility function to save screenshots
-const saveScreenshotToS3 = async (screenshot: Buffer, name: string, description: string): Promise<string> => {
+const saveScreenshotToS3 = async (
+  screenshot: Buffer,
+  name: string,
+  description: string
+): Promise<string> => {
   try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const filename = `${name}-${timestamp}.png`;
-    const key = `qa/${process.env.JOB_ID || 'unknown'}/${filename}`;
+    const key = `qa/${process.env.JOB_ID || "unknown"}/${filename}`;
 
-    await s3Client.send(new PutObjectCommand({
-      Bucket: process.env.RESULTS_BUCKET!,
-      Key: key,
-      Body: screenshot,
-      ContentType: 'image/png',
-      Metadata: {
-        screenshotName: name,
-        description: description.substring(0, 1000),
-        timestamp,
-        jobId: process.env.JOB_ID || 'unknown',
-      },
-    }));
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: process.env.RESULTS_BUCKET!,
+        Key: key,
+        Body: screenshot,
+        ContentType: "image/png",
+        Metadata: {
+          screenshotName: name,
+          description: description.substring(0, 1000),
+          timestamp,
+          jobId: process.env.JOB_ID || "unknown",
+        },
+      })
+    );
 
     const s3Url = `s3://${process.env.RESULTS_BUCKET}/${key}`;
     return s3Url;
   } catch (error: any) {
-    console.error('Error saving screenshot:', error);
+    console.error("Error saving screenshot:", error);
     throw error;
   }
 };
 
 // Find and Type Combined Tool
 const findAndTypeTool = createTool({
-  id: 'find-and-type',
-  description: 'Find an input element and type text into it in one operation',
+  id: "find-and-type",
+  description: "Find an input element and type text into it in one operation",
   inputSchema: z.object({
-    selector: z.string().describe('CSS selector for input element'),
-    text: z.string().describe('Text to type'),
-    elementIndex: z.number().default(0).describe('Index if multiple elements match'),
-    clear: z.boolean().default(true).describe('Clear field before typing'),
-    pressEnter: z.boolean().default(false).describe('Press Enter after typing'),
-    waitTimeout: z.number().default(5000).describe('How long to wait for element'),
+    selector: z.string().describe("CSS selector for input element"),
+    text: z.string().describe("Text to type"),
+    elementIndex: z
+      .number()
+      .default(0)
+      .describe("Index if multiple elements match"),
+    clear: z.boolean().default(true).describe("Clear field before typing"),
+    pressEnter: z.boolean().default(false).describe("Press Enter after typing"),
+    waitTimeout: z
+      .number()
+      .default(5000)
+      .describe("How long to wait for element"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -613,13 +708,17 @@ const findAndTypeTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
-      console.log(`Find and type: ${context.selector} = "${context.text.substring(0, 50)}..."`);
-      
+
+      console.log(
+        `Find and type: ${context.selector} = "${context.text.substring(0, 50)}..."`
+      );
+
       // Wait for and find elements
-      await page.waitForSelector(context.selector, { timeout: context.waitTimeout });
+      await page.waitForSelector(context.selector, {
+        timeout: context.waitTimeout,
+      });
       const elements = await page.locator(context.selector).all();
-      
+
       if (elements.length === 0) {
         return {
           success: false,
@@ -628,41 +727,38 @@ const findAndTypeTool = createTool({
           error: `No elements found for selector: ${context.selector}`,
         };
       }
-      
+
       // Get the target element
       const element = page.locator(context.selector).nth(context.elementIndex);
-      await element.waitFor({ state: 'visible', timeout: context.waitTimeout });
-      
+      await element.waitFor({ state: "visible", timeout: context.waitTimeout });
+
       // Clear and type
       if (context.clear) {
         await element.clear();
       }
-      
+
       await element.fill(context.text);
-      
+
       if (context.pressEnter) {
-        await element.press('Enter');
+        await element.press("Enter");
       }
-      
+
       // Get final value for verification
       const finalValue = await element.inputValue();
-      
+
       browserManager.updateActivity();
-      console.log(`✅ Found ${elements.length} elements, typed into element ${context.elementIndex}`);
-      
-      // Add rate limiting delay
-      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
-      await new Promise(resolve => setTimeout(resolve, 15000));
-      
+      console.log(
+        `✅ Found ${elements.length} elements, typed into element ${context.elementIndex}`
+      );
+
       return {
         success: true,
         elementsFound: elements.length,
         typed: true,
         finalValue,
       };
-      
     } catch (error: any) {
-      console.error('Find and type failed:', error);
+      console.error("Find and type failed:", error);
       return {
         success: false,
         elementsFound: 0,
@@ -675,14 +771,26 @@ const findAndTypeTool = createTool({
 
 // Find and Click Combined Tool
 const findAndClickTool = createTool({
-  id: 'find-and-click',
-  description: 'Find a clickable element and click it in one operation',
+  id: "find-and-click",
+  description: "Find a clickable element and click it in one operation",
   inputSchema: z.object({
-    selector: z.string().describe('CSS selector for element to click'),
-    elementIndex: z.number().default(0).describe('Index if multiple elements match'),
-    waitTimeout: z.number().default(5000).describe('How long to wait for element'),
-    force: z.boolean().default(false).describe('Force click even if element not ready'),
-    waitAfterClick: z.number().default(1000).describe('Milliseconds to wait after clicking'),
+    selector: z.string().describe("CSS selector for element to click"),
+    elementIndex: z
+      .number()
+      .default(0)
+      .describe("Index if multiple elements match"),
+    waitTimeout: z
+      .number()
+      .default(5000)
+      .describe("How long to wait for element"),
+    force: z
+      .boolean()
+      .default(false)
+      .describe("Force click even if element not ready"),
+    waitAfterClick: z
+      .number()
+      .default(1000)
+      .describe("Milliseconds to wait after clicking"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -695,13 +803,17 @@ const findAndClickTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
-      console.log(`Find and click: ${context.selector} (index: ${context.elementIndex})`);
-      
+
+      console.log(
+        `Find and click: ${context.selector} (index: ${context.elementIndex})`
+      );
+
       // Wait for and find elements
-      await page.waitForSelector(context.selector, { timeout: context.waitTimeout });
+      await page.waitForSelector(context.selector, {
+        timeout: context.waitTimeout,
+      });
       const elements = await page.locator(context.selector).all();
-      
+
       if (elements.length === 0) {
         return {
           success: false,
@@ -710,7 +822,7 @@ const findAndClickTool = createTool({
           error: `No elements found for selector: ${context.selector}`,
         };
       }
-      
+
       if (context.elementIndex >= elements.length) {
         return {
           success: false,
@@ -719,35 +831,32 @@ const findAndClickTool = createTool({
           error: `Element index ${context.elementIndex} out of range (found ${elements.length} elements)`,
         };
       }
-      
+
       // Get element text for verification
       const element = page.locator(context.selector).nth(context.elementIndex);
-      const elementText = await element.textContent() || '';
-      
+      const elementText = (await element.textContent()) || "";
+
       // Click the element
       await element.click({ force: context.force });
-      
+
       // Wait after click for any resulting changes
       if (context.waitAfterClick > 0) {
         await page.waitForTimeout(context.waitAfterClick);
       }
-      
+
       browserManager.updateActivity();
-      console.log(`✅ Found ${elements.length} elements, clicked element ${context.elementIndex}: "${elementText}"`);
-      
-      // Add rate limiting delay
-      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
-      await new Promise(resolve => setTimeout(resolve, 15000));
-      
+      console.log(
+        `✅ Found ${elements.length} elements, clicked element ${context.elementIndex}: "${elementText}"`
+      );
+
       return {
         success: true,
         elementsFound: elements.length,
         clicked: true,
         elementText: elementText.substring(0, 100), // Limit text length
       };
-      
     } catch (error: any) {
-      console.error('Find and click failed:', error);
+      console.error("Find and click failed:", error);
       return {
         success: false,
         elementsFound: 0,
@@ -758,16 +867,24 @@ const findAndClickTool = createTool({
   },
 });
 
-// Navigate and Analyze Combined Tool  
+// Navigate and Analyze Combined Tool
 const navigateAndAnalyzeTool = createTool({
-  id: 'navigate-and-analyze',
-  description: 'Navigate to a URL and immediately analyze the page structure',
+  id: "navigate-and-analyze",
+  description: "Navigate to a URL and immediately analyze the page structure",
   inputSchema: z.object({
-    url: z.string().describe('URL to navigate to'),
-    waitUntil: z.enum(['load', 'domcontentloaded', 'networkidle']).default('load'),
-    timeout: z.number().default(30000).describe('Navigation timeout'),
-    includeTitle: z.boolean().default(true).describe('Include page title in analysis'),
-    includeFormInfo: z.boolean().default(true).describe('Include basic form info'),
+    url: z.string().describe("URL to navigate to"),
+    waitUntil: z
+      .enum(["load", "domcontentloaded", "networkidle"])
+      .default("load"),
+    timeout: z.number().default(30000).describe("Navigation timeout"),
+    includeTitle: z
+      .boolean()
+      .default(true)
+      .describe("Include page title in analysis"),
+    includeFormInfo: z
+      .boolean()
+      .default(true)
+      .describe("Include basic form info"),
   }),
   outputSchema: z.object({
     navigationSuccess: z.boolean(),
@@ -784,40 +901,42 @@ const navigateAndAnalyzeTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
+
       console.log(`Navigate and analyze: ${context.url}`);
-      
+
       // Navigate
-      await page.goto(context.url, { 
-        waitUntil: context.waitUntil as any, 
-        timeout: context.timeout 
+      await page.goto(context.url, {
+        waitUntil: context.waitUntil as any,
+        timeout: context.timeout,
       });
-      
+
       // Brief wait for page to settle
       await page.waitForTimeout(2000);
-      
+
       const url = page.url();
       const title = await page.title();
-      
+
       // Quick analysis without heavy data
       const analysis = await page.evaluate(() => {
-        const forms = document.querySelectorAll('form');
-        const buttons = document.querySelectorAll('button');
-        const inputs = document.querySelectorAll('input');
-        
+        const forms = document.querySelectorAll("form");
+        const buttons = document.querySelectorAll("button");
+        const inputs = document.querySelectorAll("input");
+
         // Check for login indicators
-        const hasLoginForm = Array.from(forms).some(form => 
-          form.innerHTML.toLowerCase().includes('password') ||
-          form.innerHTML.toLowerCase().includes('login') ||
-          form.innerHTML.toLowerCase().includes('sign in')
+        const hasLoginForm = Array.from(forms).some(
+          (form) =>
+            form.innerHTML.toLowerCase().includes("password") ||
+            form.innerHTML.toLowerCase().includes("login") ||
+            form.innerHTML.toLowerCase().includes("sign in")
         );
-        
+
         // Check for search indicators
-        const hasSearchElements = Array.from(inputs).some(input => 
-          input.placeholder?.toLowerCase().includes('search') ||
-          input.name?.toLowerCase().includes('search')
+        const hasSearchElements = Array.from(inputs).some(
+          (input) =>
+            input.placeholder?.toLowerCase().includes("search") ||
+            input.name?.toLowerCase().includes("search")
         );
-        
+
         return {
           hasLoginForm,
           hasSearchElements,
@@ -826,27 +945,24 @@ const navigateAndAnalyzeTool = createTool({
           inputCount: inputs.length,
         };
       });
-      
+
       browserManager.updateActivity();
-      console.log(`✅ Navigated to ${url} and analyzed: ${analysis.formCount} forms, ${analysis.inputCount} inputs`);
-      
-      // Add rate limiting delay
-      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
-      await new Promise(resolve => setTimeout(resolve, 15000));
-      
+      console.log(
+        `✅ Navigated to ${url} and analyzed: ${analysis.formCount} forms, ${analysis.inputCount} inputs`
+      );
+
       return {
         navigationSuccess: true,
         url,
         title,
         ...analysis,
       };
-      
     } catch (error: any) {
-      console.error('Navigate and analyze failed:', error);
+      console.error("Navigate and analyze failed:", error);
       return {
         navigationSuccess: false,
         url: context.url,
-        title: '',
+        title: "",
         hasLoginForm: false,
         hasSearchElements: false,
         formCount: 0,
@@ -860,16 +976,26 @@ const navigateAndAnalyzeTool = createTool({
 
 // Multi-Step Form Fill Tool
 const fillFormTool = createTool({
-  id: 'fill-form',
-  description: 'Fill multiple form fields in one operation',
+  id: "fill-form",
+  description: "Fill multiple form fields in one operation",
   inputSchema: z.object({
-    fields: z.array(z.object({
-      selector: z.string(),
-      value: z.string(),
-      clear: z.boolean().default(true),
-    })).describe('Array of fields to fill'),
-    submitSelector: z.string().optional().describe('Submit button selector (will click if provided)'),
-    waitBetweenFields: z.number().default(500).describe('Milliseconds to wait between field fills'),
+    fields: z
+      .array(
+        z.object({
+          selector: z.string(),
+          value: z.string(),
+          clear: z.boolean().default(true),
+        })
+      )
+      .describe("Array of fields to fill"),
+    submitSelector: z
+      .string()
+      .optional()
+      .describe("Submit button selector (will click if provided)"),
+    waitBetweenFields: z
+      .number()
+      .default(500)
+      .describe("Milliseconds to wait between field fills"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -881,38 +1007,37 @@ const fillFormTool = createTool({
     try {
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
-      
+
       console.log(`Fill form with ${context.fields.length} fields`);
-      
+
       const errors: string[] = [];
       let fieldsFilled = 0;
-      
+
       // Fill each field
       for (const field of context.fields) {
         try {
           await page.waitForSelector(field.selector, { timeout: 5000 });
           const element = page.locator(field.selector).first();
-          
+
           if (field.clear) {
             await element.clear();
           }
-          
+
           await element.fill(field.value);
           fieldsFilled++;
-          
+
           if (context.waitBetweenFields > 0) {
             await page.waitForTimeout(context.waitBetweenFields);
           }
-          
+
           console.log(`✓ Filled field: ${field.selector}`);
-          
         } catch (error: any) {
           const errorMsg = `Failed to fill ${field.selector}: ${error.message}`;
           errors.push(errorMsg);
           console.error(errorMsg);
         }
       }
-      
+
       // Submit if requested
       let submitted = false;
       if (context.submitSelector) {
@@ -925,23 +1050,20 @@ const fillFormTool = createTool({
           errors.push(`Failed to submit: ${error.message}`);
         }
       }
-      
+
       browserManager.updateActivity();
-      console.log(`✅ Form fill completed: ${fieldsFilled}/${context.fields.length} fields filled`);
-      
-      // Add rate limiting delay
-      console.log('🚦 Tool completed - waiting 15s to prevent rate limiting');
-      await new Promise(resolve => setTimeout(resolve, 15000));
-      
+      console.log(
+        `✅ Form fill completed: ${fieldsFilled}/${context.fields.length} fields filled`
+      );
+
       return {
         success: errors.length === 0,
         fieldsFilled,
         submitted,
         errors,
       };
-      
     } catch (error: any) {
-      console.error('Form fill failed:', error);
+      console.error("Form fill failed:", error);
       return {
         success: false,
         fieldsFilled: 0,
@@ -960,7 +1082,6 @@ CRITICAL EFFICIENCY RULES:
 - Prefer bundled tools to reduce API calls
 - Use fillForm for login (email + password + submit in one call)
 - Use navigateAndAnalyze to understand new pages quickly
-- You are rate limited to 20,000 token uses per minute. A tool call uses on average 2,500 to 3,000 tokens.
 
 BUNDLED TOOLS (Preferred - Fewer API calls):
 - **findAndType**: Find input and type text in one operation
@@ -969,7 +1090,7 @@ BUNDLED TOOLS (Preferred - Fewer API calls):
 - **fillForm**: Fill multiple form fields in one operation
 
 INDIVIDUAL TOOLS (Use sparingly):
-- navigate, wait, screenshot, executeJS
+- navigate, wait, screenshot, executeJS, findElements
 
 VALID CSS SELECTORS:
 ✅ input[type="email"]
@@ -1005,36 +1126,34 @@ Example efficient workflow:
 
 `;
 
-const anthropic = createAnthropic({headers: {
-  "anthropic-beta": "token-efficient-tools-2025-02-19"
-}})
+const anthropic = createAnthropic({
+  headers: {
+    "anthropic-beta": "token-efficient-tools-2025-02-19",
+  },
+});
 
 // Generic Browser Agent
 const genericBrowserAgent = new Agent({
-  name: 'Generic Browser Automation Agent',
+  name: "Generic Browser Automation Agent",
   instructions: enhancedInstructions,
-  model: anthropic('claude-3-7-sonnet-20250219'),
-  tools: { 
+  model: anthropic("claude-3-7-sonnet-20250219"),
+  tools: {
     findAndType: findAndTypeTool,
     findAndClick: findAndClickTool,
     navigateAndAnalyze: navigateAndAnalyzeTool,
     fillForm: fillFormTool,
-    navigate: navigateTool,
-    findElements: findElementsTool,
-    click: clickTool,
-    type: typeTool,
     wait: waitTool,
     screenshot: screenshotTool,
-    analyzePage: analyzePageTool,
-    executeJs: executeJSTool
+    executeJs: executeJSTool,
+    findElements: findElementsTool,
   },
   memory: new Memory({
     storage: new DynamoDBStore({
       name: "dynamodb",
       config: {
         tableName: process.env.MASTRA_TABLE_NAME!,
-        region: process.env.REGION!
-      }
+        region: process.env.REGION!,
+      },
     }),
     options: {
       lastMessages: 3, // Increased for more context
@@ -1044,23 +1163,23 @@ const genericBrowserAgent = new Agent({
 
 // Main Lambda handler
 export const handler = async (event: any): Promise<any> => {
-  console.log('Generic Browser Agent invoked');
-  console.log('Event:', JSON.stringify(event, null, 2));
-  
+  console.log("Generic Browser Agent invoked");
+  console.log("Event:", JSON.stringify(event, null, 2));
+
   const browserManager = BrowserContextManager.getInstance();
-  
+
   try {
     if (!event.input) {
       return {
         statusCode: 400,
         body: JSON.stringify({
-          error: 'Missing required field: input',
-          usage: 'Provide a natural language prompt for browser automation',
+          error: "Missing required field: input",
+          usage: "Provide a natural language prompt for browser automation",
           examples: [
             'Go to the login page, log in with the credentials, then search for "jim johnson" and find his phone number',
-            'Navigate to example.com and take a screenshot',
-            'Find all the input fields on the current page and tell me what they are for'
-          ]
+            "Navigate to example.com and take a screenshot",
+            "Find all the input fields on the current page and tell me what they are for",
+          ],
         }),
       };
     }
@@ -1072,7 +1191,9 @@ export const handler = async (event: any): Promise<any> => {
     // Set job ID in environment for screenshot naming
     process.env.JOB_ID = jobId;
 
-    console.log(`Processing generic browser automation with thread ID: ${threadId}, job ID: ${jobId}`);
+    console.log(
+      `Processing generic browser automation with thread ID: ${threadId}, job ID: ${jobId}`
+    );
 
     const result = await genericBrowserAgent.generate(event.input, {
       threadId,
@@ -1082,9 +1203,9 @@ export const handler = async (event: any): Promise<any> => {
       maxTokens: 64000,
       providerOptions: {
         anthropic: {
-          test: ''
-        }
-      }
+          test: "",
+        },
+      },
     });
 
     const processingTime = Date.now() - startTime;
@@ -1094,8 +1215,17 @@ export const handler = async (event: any): Promise<any> => {
       thread_id: threadId,
       job_id: jobId,
       processingTime,
-      automationType: 'generic-browser',
-      features: ['navigation', 'element-finding', 'clicking', 'typing', 'waiting', 'screenshots', 'page-analysis', 'javascript-execution'],
+      automationType: "generic-browser",
+      features: [
+        "navigation",
+        "element-finding",
+        "clicking",
+        "typing",
+        "waiting",
+        "screenshots",
+        "page-analysis",
+        "javascript-execution",
+      ],
       timestamp: new Date().toISOString(),
       environment: {
         nodeVersion: process.version,
@@ -1110,18 +1240,17 @@ export const handler = async (event: any): Promise<any> => {
       statusCode: 200,
       body: JSON.stringify(response),
     };
-
   } catch (error: any) {
-    console.error('Generic browser automation error:', error);
-    console.error('Error stack:', error.stack);
-    
+    console.error("Generic browser automation error:", error);
+    console.error("Error stack:", error.stack);
+
     return {
       statusCode: 500,
       body: JSON.stringify({
         error: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-        automationType: 'generic-browser',
-        type: error.constructor?.name || 'Error',
+        stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+        automationType: "generic-browser",
+        type: error.constructor?.name || "Error",
         timestamp: new Date().toISOString(),
         job_id: event.jobId,
       }),
@@ -1131,7 +1260,7 @@ export const handler = async (event: any): Promise<any> => {
     try {
       await browserManager.cleanup();
     } catch (e) {
-      console.error('Error during final cleanup:', e);
+      console.error("Error during final cleanup:", e);
     }
   }
 };
