@@ -1,11 +1,5 @@
 // src/handlers/containers/qa/index.ts - Generic Browser Automation Toolkit
-import {
-  chromium,
-  Page,
-  Browser,
-  BrowserContext,
-  Locator,
-} from "playwright-core";
+import { chromium, Page, Browser, BrowserContext } from "playwright-core";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
@@ -98,61 +92,6 @@ class BrowserContextManager {
   }
 }
 
-// Generic Navigation Tool
-const navigateTool = createTool({
-  id: "navigate",
-  description: "Navigate to a URL and wait for the page to load",
-  inputSchema: z.object({
-    url: z.string().describe("URL to navigate to"),
-    waitUntil: z
-      .enum(["load", "domcontentloaded", "networkidle"])
-      .default("networkidle")
-      .describe("When to consider navigation complete"),
-    timeout: z
-      .number()
-      .default(30000)
-      .describe("Navigation timeout in milliseconds"),
-  }),
-  outputSchema: z.object({
-    success: z.boolean(),
-    url: z.string(),
-    title: z.string(),
-    error: z.string().optional(),
-  }),
-  execute: async ({ context }): Promise<any> => {
-    try {
-      const browserManager = BrowserContextManager.getInstance();
-      const page = await browserManager.getPage();
-
-      console.log(`Navigating to: ${context.url}`);
-      await page.goto(context.url, {
-        waitUntil: context.waitUntil as any,
-        timeout: context.timeout,
-      });
-
-      const title = await page.title();
-      const url = page.url();
-
-      browserManager.updateActivity();
-      console.log(`Navigation complete: ${title} (${url})`);
-
-      return {
-        success: true,
-        url,
-        title,
-      };
-    } catch (error: any) {
-      console.error("Navigation failed:", error);
-      return {
-        success: false,
-        url: context.url,
-        title: "",
-        error: error.message,
-      };
-    }
-  },
-});
-
 // Generic Element Finding Tool
 const findElementsTool = createTool({
   id: "find-elements",
@@ -209,174 +148,10 @@ const findElementsTool = createTool({
   },
 });
 
-// Generic Click Tool
-const clickTool = createTool({
-  id: "click",
-  description: "Click on an element using CSS selector",
-  inputSchema: z.object({
-    selector: z.string().describe("CSS selector for element to click"),
-    elementIndex: z
-      .number()
-      .default(0)
-      .describe("Index of element if multiple match (0 = first)"),
-    waitForElement: z
-      .boolean()
-      .default(true)
-      .describe("Wait for element to be visible before clicking"),
-    timeout: z.number().default(5000).describe("Timeout for waiting"),
-    force: z
-      .boolean()
-      .default(false)
-      .describe("Force click even if element is not ready"),
-  }),
-  outputSchema: z.object({
-    success: z.boolean(),
-    elementFound: z.boolean(),
-    clicked: z.boolean(),
-    error: z.string().optional(),
-  }),
-  execute: async ({ context }): Promise<any> => {
-    try {
-      const browserManager = BrowserContextManager.getInstance();
-      const page = await browserManager.getPage();
-
-      console.log(
-        `Clicking: ${context.selector} (index: ${context.elementIndex})`
-      );
-
-      if (context.waitForElement) {
-        try {
-          await page.waitForSelector(context.selector, {
-            timeout: context.timeout,
-          });
-        } catch (e) {
-          console.log(`Element not found within timeout: ${context.selector}`);
-          return {
-            success: false,
-            elementFound: false,
-            clicked: false,
-            error: `Element not found: ${context.selector}`,
-          };
-        }
-      }
-
-      const element = page.locator(context.selector).nth(context.elementIndex);
-
-      if (!(await element.count())) {
-        return {
-          success: false,
-          elementFound: false,
-          clicked: false,
-          error: `No element found at index ${context.elementIndex}`,
-        };
-      }
-
-      await element.click({ force: context.force });
-
-      browserManager.updateActivity();
-      console.log(`Successfully clicked: ${context.selector}`);
-
-      return {
-        success: true,
-        elementFound: true,
-        clicked: true,
-      };
-    } catch (error: any) {
-      console.error("Click failed:", error);
-      return {
-        success: false,
-        elementFound: true,
-        clicked: false,
-        error: error.message,
-      };
-    }
-  },
-});
-
-// Generic Type Tool
-const typeTool = createTool({
-  id: "type",
-  description: "Type text into an input field",
-  inputSchema: z.object({
-    selector: z.string().describe("CSS selector for input element"),
-    text: z.string().describe("Text to type"),
-    elementIndex: z
-      .number()
-      .default(0)
-      .describe("Index of element if multiple match"),
-    clear: z.boolean().default(true).describe("Clear field before typing"),
-    pressEnter: z.boolean().default(false).describe("Press Enter after typing"),
-    delay: z
-      .number()
-      .default(0)
-      .describe("Delay between keystrokes in milliseconds"),
-  }),
-  outputSchema: z.object({
-    success: z.boolean(),
-    elementFound: z.boolean(),
-    typed: z.boolean(),
-    error: z.string().optional(),
-  }),
-  execute: async ({ context }): Promise<any> => {
-    try {
-      const browserManager = BrowserContextManager.getInstance();
-      const page = await browserManager.getPage();
-
-      console.log(
-        `Typing into: ${context.selector} (text: "${context.text.substring(0, 50)}...")`
-      );
-
-      const element = page.locator(context.selector).nth(context.elementIndex);
-
-      if (!(await element.count())) {
-        return {
-          success: false,
-          elementFound: false,
-          typed: false,
-          error: `Element not found: ${context.selector}`,
-        };
-      }
-
-      await element.waitFor({ state: "visible", timeout: 5000 });
-
-      if (context.clear) {
-        await element.clear();
-      }
-
-      if (context.delay > 0) {
-        await element.type(context.text, { delay: context.delay });
-      } else {
-        await element.fill(context.text);
-      }
-
-      if (context.pressEnter) {
-        await element.press("Enter");
-      }
-
-      browserManager.updateActivity();
-      console.log(`Successfully typed into: ${context.selector}`);
-
-      return {
-        success: true,
-        elementFound: true,
-        typed: true,
-      };
-    } catch (error: any) {
-      console.error("Type failed:", error);
-      return {
-        success: false,
-        elementFound: false,
-        typed: false,
-        error: error.message,
-      };
-    }
-  },
-});
-
 // Generic Wait Tool
 const waitTool = createTool({
   id: "wait",
-  description: "Wait for 10 seconds",
+  description: "Wait for 60 seconds",
   outputSchema: z.object({
     success: z.boolean(),
     waited: z.number(),
@@ -388,7 +163,7 @@ const waitTool = createTool({
       const browserManager = BrowserContextManager.getInstance();
       const startTime = Date.now();
 
-      await new Promise((resolve) => setTimeout(resolve, 10000));
+      await new Promise((resolve) => setTimeout(resolve, 30000));
 
       const waited = Date.now() - startTime;
       browserManager.updateActivity();
@@ -478,115 +253,6 @@ const screenshotTool = createTool({
         filename: context.filename,
         s3Url: "",
         description: context.description,
-        error: error.message,
-      };
-    }
-  },
-});
-
-// Page Analysis Tool
-const analyzePageTool = createTool({
-  id: "analyze-page",
-  description: "Analyze the current page structure and content",
-  inputSchema: z.object({
-    includeText: z
-      .boolean()
-      .default(false)
-      .describe("Include text content analysis"),
-    includeStructure: z
-      .boolean()
-      .default(false)
-      .describe("Include HTML structure analysis"),
-    maxTextLength: z
-      .number()
-      .default(1000)
-      .describe("Maximum length of text content to return"),
-  }),
-  outputSchema: z.object({
-    url: z.string(),
-    title: z.string(),
-    textContent: z.string().optional(),
-    forms: z.array(
-      z.object({
-        action: z.string(),
-        method: z.string(),
-        inputs: z.array(
-          z.object({
-            type: z.string(),
-            name: z.string(),
-            placeholder: z.string(),
-          })
-        ),
-      })
-    ),
-    buttons: z.array(
-      z.object({
-        text: z.string(),
-        type: z.string(),
-        disabled: z.boolean(),
-      })
-    ),
-    links: z.array(
-      z.object({
-        text: z.string(),
-        href: z.string(),
-      })
-    ),
-    images: z.array(
-      z.object({
-        src: z.string(),
-        alt: z.string(),
-      })
-    ),
-    error: z.string().optional(),
-  }),
-  execute: async ({ context }): Promise<any> => {
-    try {
-      const browserManager = BrowserContextManager.getInstance();
-      const page = await browserManager.getPage();
-
-      console.log("Analyzing page structure...");
-
-      const analysis = await page.evaluate(
-        (options) => {
-          const result: any = {
-            url: window.location.href,
-            title: document.title,
-            forms: [],
-            buttons: [],
-            links: [],
-            images: [],
-          };
-
-          if (options.includeText) {
-            result.textContent = document.body.innerText.substring(
-              0,
-              options.maxTextLength
-            );
-          }
-
-          return result;
-        },
-        {
-          includeText: context.includeText,
-          includeStructure: context.includeStructure,
-          maxTextLength: context.maxTextLength,
-        }
-      );
-
-      browserManager.updateActivity();
-      console.log("Page analysis completed");
-
-      return analysis;
-    } catch (error: any) {
-      console.error("Page analysis failed:", error);
-      return {
-        url: "",
-        title: "",
-        forms: [],
-        buttons: [],
-        links: [],
-        images: [],
         error: error.message,
       };
     }
@@ -1082,6 +748,7 @@ CRITICAL EFFICIENCY RULES:
 - Prefer bundled tools to reduce API calls
 - Use fillForm for login (email + password + submit in one call)
 - Use navigateAndAnalyze to understand new pages quickly
+- Use the wait tool between successful steps to avoid rate limiting
 
 BUNDLED TOOLS (Preferred - Fewer API calls):
 - **findAndType**: Find input and type text in one operation
