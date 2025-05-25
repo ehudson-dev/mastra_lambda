@@ -51,10 +51,11 @@ For text content, use:
 ✅ [aria-label*="text"]
 ✅ [title*="text"]
 
-
 Approach:
 1. Plan workflow 
 2. Execute step by step
+3. After each step, take a screenshot and analyze it for: error messages, success messages, & loading indicators
+4. Did the screenshot match your expectations? If not, try adjusting your approach
 
 Example efficient workflow:
 1. navigateAndAnalyze to login page
