@@ -1,51 +1,189 @@
 # Mastra AI Serverless Implementation
 
-This repo uses the Mastra AI Library & CDK to deploy serverless Claude agents.
+A serverless AI agent system built with [Mastra.ai](https://mastra.ai) and AWS CDK. This implementation provides scalable, container-based AI agents that can perform complex browser automation, API interactions, and other AI-powered tasks.
 
-It does not build Mastra, or use their server or API.
+> **Note**: This repo implements Mastra.ai as a serverless solution using AWS infrastructure. It does not build Mastra itself or use their hosted server/API.
 
-## API
+## Architecture Overview
 
-The API uses a format like:
+- **API Gateway**: RESTful endpoints for job management
+- **Lambda Functions**: Containerized AI agents with specialized tools
+- **SQS**: Asynchronous job queue for long-running tasks
+- **DynamoDB**: Agent memory and conversation storage
+- **S3**: Results storage and screenshot management
+- **Rate Limiting**: Intelligent Anthropic API usage management
 
-`POST /api/job/start` - start a job
+## Key Features
 
-If you want to start a background job:
+- 🚀 **Serverless & Scalable**: AWS Lambda containers with automatic scaling
+- 🤖 **Multiple Agent Types**: Direct agents and background container jobs
+- 🌐 **Browser Automation**: Full Playwright integration with screenshot capture
+- ⚡ **Async Processing**: SQS-based job queue for long-running tasks
+- 💾 **Persistent Memory**: DynamoDB-backed conversation history
+- 🔄 **Rate Limiting**: Smart Anthropic API usage with header-based limits
+- 📊 **Job Tracking**: Complete job lifecycle management with status API
 
-```
+## API Usage
+
+### Starting Jobs
+
+**Endpoint**: `POST /api/job/start`
+
+#### Background Container Jobs (Recommended for complex tasks)
+
+For browser automation, web scraping, or other long-running tasks:
+
+```json
 {
- "container": "browser_automation,
- "prompt": "go to google.com and search cats, provide a screenshot and summary of the results"
+  "container": "browser_automation",
+  "prompt": "Navigate to github.com, search for 'mastra', and take a screenshot of the first repository result",
+  "thread_id": "optional-thread-id"
 }
-
 ```
 
-If you want to directly invoke an agent (the only agent using this format is the example weather agent from mastra.ai):
-
-```
+**Response**:
+```json
 {
-    "agent": "weatherAgent",
-    "prompt": "What's the weather in Seattle"
+  "jobId": "uuid-generated-job-id",
+  "status": "queued",
+  "containerName": "browser_automation",
+  "checkStatusUrl": "/api/job/uuid-generated-job-id",
+  "timestamp": "2025-01-XX..."
 }
-
 ```
 
-To check the status of a job:
+**Available Containers**:
+- `browser_automation` - Full browser automation with Playwright
 
-`GET /api/job/{job_id}`
+#### Direct Agent Invocation (For simple, fast responses)
 
-## Storage
+For quick tasks (under 30 seconds, the API gateway maximum timeout), there is an example agent (the mastra.ai weather agent example) that can be invoked in a direct request/response model:
 
-It uses DynamoDB for Mastras storage engine. 
+```json
+{
+  "agent": "weatherAgent", 
+  "prompt": "What's the weather in Seattle?",
+  "thread_id": "optional-thread-id"
+}
+```
 
-## Installation Requirements
+**Response**:
+```json
+{
+  "thread_id": "uuid-thread-id",
+  "text": "The current weather in Seattle is...",
+  "toolResults": [...],
+  "usage": {...}
+}
+```
 
-In your github repo / fork, configure the following environment secrets:
+### Checking Job Status
 
-- `AWS_ACCOUNT_ID`
-- `AWS_ACCESS_KEY`
-- `AWS_SECRET_ACCESS_KEY`
-- `ANTHROPIC_API_KEY`
+**Endpoint**: `GET /api/job/{job_id}`
+
+**Response**:
+```json
+{
+  "jobId": "uuid-job-id",
+  "status": "completed", // queued | processing | completed | failed
+  "containerName": "browser_automation",
+  "submittedAt": "2025-01-XX...",
+  "completedAt": "2025-01-XX...",
+  "processingTime": 45000,
+  "result": {
+    "text": "I successfully navigated to GitHub...",
+    "toolResults": [...],
+    "screenshots": ["s3://bucket/path/screenshot.png"]
+  }
+}
+```
+
+## Browser Automation Capabilities
+
+The `browser_automation` container supports complex web interactions:
+
+```json
+{
+  "container": "browser_automation",
+  "prompt": "Go to example.com, fill out the contact form with name 'John Doe' and email 'john@example.com', submit it, and take a screenshot of the confirmation page"
+}
+```
+
+**Supported Actions**:
+- Navigation and page analysis
+- Form filling and submission  
+- Element finding and interaction
+- Screenshot capture with S3 storage
+- JavaScript execution in page context
+- Multi-step workflows with memory
+
+## Installation & Deployment
+
+### Prerequisites
+
+- AWS CLI configured with appropriate permissions
+- Node.js 20.x or higher
+- Docker (for container builds)
+
+### Environment Setup
+
+Configure these secrets in your GitHub repository or deployment environment:
+
+```bash
+# Required AWS Configuration
+AWS_ACCOUNT_ID=your-aws-account-id
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+
+# Required API Keys  
+ANTHROPIC_API_KEY=your-anthropic-api-key
+
+# Optional
+PINECONE_API_KEY=your-pinecone-key  # For future vector storage
+```
+
+### Deploy to AWS
+
+```bash
+# Install dependencies
+npm install
+cd src/dependencies/nodejs && npm install && cd -
+
+# Build and deploy
+npm run build
+npm run cdk deploy -- -c anthropic_api_key=$ANTHROPIC_API_KEY
+```
+
+### Local Development
+
+```bash
+# Install dependencies
+npm install
+cd src/dependencies/nodejs && npm install
+
+# Build TypeScript
+npm run build
+
+# Deploy with CDK
+cdk deploy -c anthropic_api_key=$ANTHROPIC_API_KEY
+```
+
+## Rate Limiting & Performance
+
+- **Intelligent Rate Limiting**: Monitors Anthropic API headers and proactively manages usage
+- **Container Optimization**: Playwright containers optimized for Lambda environment
+- **Memory Management**: Automatic browser cleanup and resource management
+- **Cost Efficient**: Pay-per-use Lambda pricing with automatic scaling
+
+## Differences from Standard Mastra
+
+This implementation differs from standard Mastra.ai usage by:
+
+- **Serverless Architecture**: No persistent servers, scales to zero
+- **Container-based Tools**: Heavy workloads run in Lambda containers
+- **Async Job Processing**: Long-running tasks processed via SQS
+- **AWS-native Storage**: Uses DynamoDB and S3 instead of traditional databases
+- **Fault Tolerant**: Includes rate limiting, error handling, and monitoring
 
 # Browser Automation Module
 
