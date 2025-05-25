@@ -179,15 +179,15 @@ export class MastraLambdaStack extends cdk.Stack {
     );
 
     // Container QA function (the actual worker)
-    const qaContainerFunction = new lambda.Function(
+    const browserAutomationContainerFunction = new lambda.Function(
       this,
-      "QAContainerFunction",
+      "BrowserAutomationFunction",
       {
-        code: lambda.Code.fromAssetImage("./src/handlers/containers/qa"),
+        code: lambda.Code.fromAssetImage("./src/handlers/containers/browser_automation"),
         handler: lambda.Handler.FROM_IMAGE,
         runtime: lambda.Runtime.FROM_IMAGE,
         role: LambdaRole,
-        timeout: cdk.Duration.minutes(5), 
+        timeout: cdk.Duration.minutes(15), 
         memorySize: 2048,
         ephemeralStorageSize: cdk.Size.gibibytes(2),
         environment: {
@@ -217,7 +217,7 @@ export class MastraLambdaStack extends cdk.Stack {
           ANTHROPIC_API_KEY: anthropic_api_key,
           MASTRA_TABLE_NAME: storageTable.tableName,
           RESULTS_BUCKET: resultsBucket.bucketName,
-          QA_CONTAINER_FUNCTION_NAME: qaContainerFunction.functionName,
+          BROWSER_AUTOMATION_FUNCTION_NAME: browserAutomationContainerFunction.functionName,
         },
       }
     );
