@@ -1,6 +1,6 @@
 // src/handlers/containers/browser_automation/index.ts
-import { BrowserContextManager } from "./browser_context_manager.js";
-import { genericBrowserAgent } from "./agent.js";
+import { BrowserContextManager } from "./lib/browser_context_manager/index.js";
+import { genericBrowserAgent } from "./agent/index.js";
 
 // Main Lambda handler
 export const handler = async (event: any): Promise<any> => {
@@ -42,11 +42,6 @@ export const handler = async (event: any): Promise<any> => {
       maxSteps: 25,
       maxRetries: 0,
       maxTokens: 64000,
-      providerOptions: {
-        anthropic: {
-          test: "",
-        },
-      },
     });
 
     const processingTime = Date.now() - startTime;

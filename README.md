@@ -56,24 +56,36 @@ This directory contains a modular browser automation system built with Mastra.ai
 ```
 src/handlers/containers/browser_automation/
 ├── index.ts                    # Main Lambda handler
-├── agent.ts                    # Browser automation agent setup
-├── browser-context-manager.ts  # Browser context lifecycle management
-├── rate-limiting.ts            # Anthropic API rate limiting logic  
-├── types.ts                    # Shared TypeScript interfaces
-├── utils.ts                    # Utility functions (S3 screenshot storage)
+├── agent/                      # Browser automation agent
+│   └── index.ts               # Agent setup and configuration
+├── lib/                        # Core library components
+│   ├── anthropic/             # Anthropic API integration
+│   │   └── index.ts          # Rate limiting and API client setup
+│   ├── browser_context_manager/ # Browser lifecycle management
+│   │   └── index.ts          # Browser context singleton
+│   └── utils/                 # Utility functions
+│       └── index.ts          # S3 screenshot storage utilities
 ├── tools/                      # Individual browser automation tools
-│   ├── index.ts               # Tool exports
-│   ├── find-elements.ts       # Element finding tool
-│   ├── wait.ts                # Wait/delay tool
-│   ├── screenshot.ts          # Screenshot capture tool
-│   ├── execute-js.ts          # JavaScript execution tool
-│   ├── find-and-type.ts       # Combined find + type tool
-│   ├── find-and-click.ts      # Combined find + click tool
-│   ├── navigate-and-analyze.ts # Navigation + page analysis tool
-│   └── fill-form.ts           # Multi-field form filling tool
-├── package.json
-├── tsconfig.json
-└── Dockerfile
+│   ├── execute_js/            # JavaScript execution tool
+│   │   └── index.ts
+│   ├── fill_form/             # Multi-field form filling tool
+│   │   └── index.ts
+│   ├── find_and_click/        # Combined find + click tool
+│   │   └── index.ts
+│   ├── find_and_type/         # Combined find + type tool
+│   │   └── index.ts
+│   ├── find_elements/         # Element finding tool
+│   │   └── index.ts
+│   ├── navigate_and_analyze/  # Navigation + page analysis tool
+│   │   └── index.ts
+│   ├── screenshot/            # Screenshot capture tool
+│   │   └── index.ts
+│   └── wait/                  # Wait/delay tool
+│       └── index.ts
+├── types.ts                    # Shared TypeScript interfaces
+├── package.json               # Package dependencies
+├── tsconfig.json              # TypeScript configuration
+└── Dockerfile                 # Container build configuration
 ```
 
 ## Key Components

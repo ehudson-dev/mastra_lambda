@@ -1,6 +1,6 @@
 // src/handlers/containers/browser_automation/rate-limiting.ts
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { RateLimitState } from "./types";
+import { RateLimitState } from "../../types";
 
 let currentRateLimit: RateLimitState | null = null;
 

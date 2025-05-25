@@ -2,7 +2,7 @@
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { DynamoDBStore } from "@mastra/dynamodb";
-import { createRateLimitedAnthropic } from "./rate_limiting.js";
+import { createRateLimitedAnthropic } from "../lib/anthropic/index.js";
 import {
   findAndTypeTool,
   findAndClickTool,
@@ -12,7 +12,7 @@ import {
   screenshotTool,
   executeJSTool,
   findElementsTool,
-} from "./tools";
+} from "../tools/index.js";
 
 const enhancedInstructions = `
 Browser automation agent. Complete ALL steps of multi-step tasks.

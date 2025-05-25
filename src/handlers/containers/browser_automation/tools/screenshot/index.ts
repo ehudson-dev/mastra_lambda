@@ -1,8 +1,8 @@
 // src/handlers/containers/browser_automation/tools/screenshot.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { BrowserContextManager } from '../../browser_context_manager.js';
-import { saveScreenshotToS3 } from '../../utils.js';
+import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
+import { saveScreenshotToS3 } from '../../lib/utils/index.js';
 
 export const screenshotTool = createTool({
   id: "screenshot",

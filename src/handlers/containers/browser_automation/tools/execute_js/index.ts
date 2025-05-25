@@ -1,7 +1,7 @@
 // src/handlers/containers/browser_automation/tools/execute-js.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
-import { BrowserContextManager } from '../../browser_context_manager.js';
+import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
 
 export const executeJSTool = createTool({
   id: "execute-js",
