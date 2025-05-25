@@ -148,24 +148,10 @@ const findElementsTool = createTool({
     selector: z.string().describe('CSS selector to find elements'),
     waitFor: z.boolean().default(false).describe('Whether to wait for elements to appear'),
     timeout: z.number().default(5000).describe('Timeout for waiting'),
-    getInfo: z.boolean().default(false).describe('Whether to return detailed info about found elements'),
   }),
   outputSchema: z.object({
     success: z.boolean(),
     count: z.number(),
-    elements: z.array(z.object({
-      index: z.number(),
-      tagName: z.string(),
-      text: z.string(),
-      attributes: z.record(z.string()),
-      isVisible: z.boolean(),
-      boundingBox: z.object({
-        x: z.number(),
-        y: z.number(),
-        width: z.number(),
-        height: z.number(),
-      }).optional(),
-    })),
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
@@ -187,54 +173,13 @@ const findElementsTool = createTool({
       
       const elements = await page.locator(context.selector).all();
       console.log(`Found ${elements.length} elements matching: ${context.selector}`);
-      
-      const elementInfo = [] as any[];
-      
-      if (context.getInfo) {
-        for (let i = 0; i < elements.length; i++) {
-          const element = elements[i];
-          try {
-            const tagName = await element.evaluate(el => el.tagName.toLowerCase());
-            const text = (await element.textContent()) || '';
-            const isVisible = await element.isVisible();
-            
-            // Get key attributes
-            const attributes: Record<string, string> = {};
-            const attrNames = ['id', 'class', 'name', 'type', 'placeholder', 'value', 'href', 'src'];
-            for (const attr of attrNames) {
-              const value = await element.getAttribute(attr);
-              if (value) attributes[attr] = value;
-            }
-            
-            let boundingBox;
-            try {
-              if (isVisible) {
-                boundingBox = await element.boundingBox();
-              }
-            } catch (e) {
-              // Ignore bounding box errors
-            }
-            
-            elementInfo.push({
-              index: i,
-              tagName,
-              text: text.substring(0, 200), // Limit text length
-              attributes,
-              isVisible,
-              boundingBox,
-            });
-          } catch (e) {
-            console.error(`Error getting info for element ${i}:`, e);
-          }
-        }
-      }
+    
       
       browserManager.updateActivity();
       
       return {
         success: true,
         count: elements.length,
-        elements: elementInfo,
       };
     } catch (error: any) {
       console.error('Find elements failed:', error);
@@ -581,58 +526,6 @@ const analyzePageTool = createTool({
           result.textContent = document.body.innerText.substring(0, options.maxTextLength);
         }
         
-        if (options.includeStructure) {
-          // Analyze forms
-          document.querySelectorAll('form').forEach(form => {
-            const formData = {
-              action: form.action || '',
-              method: form.method || 'GET',
-              inputs: [] as any[],
-            };
-            
-            form.querySelectorAll('input').forEach(input => {
-              formData.inputs.push({
-                type: input.type || 'text',
-                name: input.name || '',
-                placeholder: input.placeholder || '',
-              });
-            });
-            
-            result.forms.push(formData);
-          });
-          
-          // Analyze buttons
-          document.querySelectorAll('button').forEach(button => {
-            const text = button.textContent?.trim() || '';
-            if (text) {
-              result.buttons.push({
-                text,
-                type: button.type || 'button',
-                disabled: button.disabled,
-              });
-            }
-          });
-          
-          // Analyze links
-          document.querySelectorAll('a[href]').forEach((link: any) => {
-            const text = link.textContent?.trim() || '';
-            if (text) {
-              result.links.push({
-                text,
-                href: link.href,
-              });
-            }
-          });
-          
-          // Analyze images
-          document.querySelectorAll('img').forEach(img => {
-            result.images.push({
-              src: img.src,
-              alt: img.alt || '',
-            });
-          });
-        }
-        
         return result;
       }, {
         includeText: context.includeText,
@@ -736,6 +629,29 @@ const saveScreenshotToS3 = async (screenshot: Buffer, name: string, description:
 
 const enhancedInstructions = `
 Browser automation agent. Complete ALL steps of multi-step tasks.
+
+CRITICAL EFFICIENCY RULES:
+- NEVER set getInfo:true unless debugging failures
+- Use ONLY standard CSS selectors (no jQuery syntax)
+
+VALID CSS SELECTORS:
+✅ input[type="email"]
+✅ button[type="submit"] 
+✅ .class-name
+✅ #element-id
+✅ [aria-label="Login"]
+✅ [placeholder*="email"]
+
+INVALID SELECTORS (DO NOT USE):
+❌ :contains() - jQuery only
+❌ :visible - jQuery only  
+❌ :first - jQuery only
+❌ :eq() - jQuery only
+
+For text content, use:
+✅ button (then check text content)
+✅ [aria-label*="text"]
+✅ [title*="text"]
 
 Tools: navigate, findElements, click, type, wait, screenshot, analyzePage, executeJS
 
