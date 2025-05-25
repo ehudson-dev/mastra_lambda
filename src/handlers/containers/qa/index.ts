@@ -214,7 +214,7 @@ const performObservationalAutomation = async (context: any): Promise<any> => {
   }
 };
 
-// Comprehensive page observation function
+// Enhanced observation that recognizes async operations and waits appropriately
 const observePage = async (page: Page, context: string): Promise<any> => {
   console.log(`=== OBSERVING PAGE: ${context} ===`);
   
@@ -240,7 +240,7 @@ const observePage = async (page: Page, context: string): Promise<any> => {
     const errorElements = [] as any[];
     for (const selector of errorSelectors) {
       const elements = document.querySelectorAll(selector);
-      elements.forEach((el: any) => {
+      elements.forEach( (el: any ) => {
         if (el.offsetParent !== null) { // visible elements only
           const text = el.textContent?.trim();
           if (text && text.length > 0) {
@@ -263,6 +263,42 @@ const observePage = async (page: Page, context: string): Promise<any> => {
       }
     }
     
+    // **NEW: Check for loading/processing indicators**
+    const loadingIndicators = [] as any[];
+    const loadingSelectors = [
+      'button:contains("Signing in")', 
+      'button:contains("Loading")',
+      'button:contains("Processing")',
+      '.loading', '.spinner', '.processing',
+      '[class*="loading"]', '[class*="spinner"]'
+    ];
+    
+    // Check button text specifically for async states
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach((button : any) => {
+      const text = button.textContent?.trim().toLowerCase();
+      if (text?.includes('signing in') || 
+          text?.includes('loading') || 
+          text?.includes('processing') ||
+          text?.includes('please wait') ||
+          text?.includes('submitting')) {
+        loadingIndicators.push(`Button: "${button.textContent?.trim()}"`);
+      }
+      
+      // Check if button is disabled (another loading indicator)
+      if (button.disabled && text) {
+        loadingIndicators.push(`Disabled button: "${text}"`);
+      }
+    })
+    
+    // Check for other loading elements
+    for (const selector of loadingSelectors) {
+      const elements = document.querySelectorAll(selector);
+      if (elements.length > 0) {
+        loadingIndicators.push(`Loading element: ${selector}`);
+      }
+    }
+    
     // Get visible text content (first 500 chars)
     const bodyText = document.body?.innerText?.substring(0, 500) || '';
     
@@ -274,12 +310,17 @@ const observePage = async (page: Page, context: string): Promise<any> => {
     const emailFieldValue = emailInputs.length > 0 ? (emailInputs[0] as HTMLInputElement).value : '';
     const passwordFieldValue = passwordInputs.length > 0 ? (passwordInputs[0] as HTMLInputElement).value.length : 0;
     
+    // **NEW: Determine if we're in a processing state**
+    const isProcessing = loadingIndicators.length > 0;
+    
     return {
       url: currentUrl,
       title: pageTitle,
       hasLoginForm,
       hasSearchForm,
       isLoginPage,
+      isProcessing,
+      loadingIndicators,
       errors: errorElements,
       successIndicators: successElements,
       bodyText,
@@ -294,10 +335,13 @@ const observePage = async (page: Page, context: string): Promise<any> => {
     };
   });
   
-  // Create human-readable summary
+  // Create human-readable summary with async awareness
   let summary = `URL: ${observation.url}\nTitle: ${observation.title}\n`;
   
-  if (observation.isLoginPage) {
+  // **NEW: Process async state detection**
+  if (observation.isProcessing) {
+    summary += `STATUS: ⏳ PROCESSING - ${observation.loadingIndicators.join(', ')}\n`;
+  } else if (observation.isLoginPage) {
     summary += `STATUS: Still on login page\n`;
   } else {
     summary += `STATUS: Not on login page (login may have succeeded)\n`;
@@ -327,10 +371,11 @@ const observePage = async (page: Page, context: string): Promise<any> => {
     ...observation,
     summary,
     hasErrors: observation.errors.length > 0,
+    needsMoreWaiting: observation.isProcessing,
   };
 };
 
-// Observational login with step-by-step verification
+// Enhanced login function that waits for async operations
 const performObservationalLogin = async (
   page: Page, 
   credentials: any, 
@@ -342,14 +387,13 @@ const performObservationalLogin = async (
   let currentStep = startStep;
   
   try {
-    // Step: Fill email field
+    // Fill email field (same as before)
     currentStep++;
     console.log(`Step ${currentStep}: Filling email field`);
     
     const emailField = page.locator('input[type="email"], input[name="email"], input[name="username"]').first();
     await emailField.waitFor({ state: 'visible', timeout: 5000 });
     
-    // Use triple-click method for React forms
     await emailField.click({ clickCount: 3 });
     await page.waitForTimeout(200);
     await page.keyboard.type(credentials.username);
@@ -357,7 +401,6 @@ const performObservationalLogin = async (
     await page.keyboard.press('Tab');
     await page.waitForTimeout(1000);
     
-    // Observe after email entry
     const emailObservation = await observePage(page, 'after_email_entry');
     const emailScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-email-entry`, screenshots);
     
@@ -373,7 +416,7 @@ const performObservationalLogin = async (
       return { success: false, error: `Email entry failed: ${emailObservation.errors.join(', ')}`, nextStep: currentStep };
     }
     
-    // Step: Fill password field
+    // Fill password field (same as before)
     currentStep++;
     console.log(`Step ${currentStep}: Filling password field`);
     
@@ -385,7 +428,6 @@ const performObservationalLogin = async (
     await passwordField.fill(credentials.password);
     await page.waitForTimeout(500);
     
-    // Observe after password entry
     const passwordObservation = await observePage(page, 'after_password_entry');
     const passwordScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-password-entry`, screenshots);
     
@@ -397,7 +439,7 @@ const performObservationalLogin = async (
       screenshot: passwordScreenshot,
     });
     
-    // Step: Submit login form
+    // Submit login form
     currentStep++;
     console.log(`Step ${currentStep}: Submitting login form`);
     
@@ -405,27 +447,70 @@ const performObservationalLogin = async (
     await submitButton.waitFor({ state: 'visible', timeout: 5000 });
     await submitButton.click();
     
-    // Wait for response and observe
-    await page.waitForTimeout(5000);
+    // **NEW: Enhanced waiting for async login process**
+    console.log('Waiting for login process to complete...');
     
-    const submitObservation = await observePage(page, 'after_login_submit');
-    const submitScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-login-submit`, screenshots);
+    let waitAttempts = 0;
+    const maxWaitAttempts = 12; // 12 * 2.5s = 30 seconds max wait
+    let finalObservation;
     
-    // Determine if login was successful
-    const loginSuccessful = !submitObservation.isLoginPage && !submitObservation.hasErrors;
+    while (waitAttempts < maxWaitAttempts) {
+      await page.waitForTimeout(2500); // Wait 2.5 seconds between checks
+      waitAttempts++;
+      
+      finalObservation = await observePage(page, `login_check_attempt_${waitAttempts}`);
+      console.log(`Login check attempt ${waitAttempts}: ${finalObservation.isProcessing ? 'STILL PROCESSING' : 'COMPLETED'}`);
+      
+      // If no longer processing, break out of wait loop
+      if (!finalObservation.needsMoreWaiting) {
+        console.log('Login process completed (no more loading indicators)');
+        break;
+      }
+      
+      console.log(`Still processing (${finalObservation.loadingIndicators.join(', ')}), waiting more...`);
+    }
+    
+    // Final observation after waiting
+    if (!finalObservation) {
+      finalObservation = await observePage(page, 'final_login_state');
+    }
+    
+    const submitScreenshot = await captureAndStoreScreenshot(page, `step-${currentStep}-login-final`, screenshots);
+    
+    // Determine if login was successful after proper waiting
+    const loginSuccessful = !finalObservation.isLoginPage && !finalObservation.hasErrors && !finalObservation.needsMoreWaiting;
+    
+    let decision;
+    if (finalObservation.needsMoreWaiting) {
+      decision = `Login still processing after ${waitAttempts * 2.5} seconds - may need more time`;
+    } else if (loginSuccessful) {
+      decision = 'Login successful - redirected from login page';
+    } else if (finalObservation.hasErrors) {
+      decision = `Login failed with errors: ${finalObservation.errors.join(', ')}`;
+    } else {
+      decision = 'Login failed - still on login page with no processing indicators';
+    }
     
     actionsTaken.push({
       step: currentStep,
-      action: 'Submit login form',
-      observation: submitObservation.summary,
-      decision: loginSuccessful ? 'Login successful - redirected from login page' : 'Login failed - still on login page or errors present',
+      action: `Submit login form and wait for completion (waited ${waitAttempts * 2.5}s)`,
+      observation: finalObservation.summary,
+      decision,
       screenshot: submitScreenshot,
     });
     
+    if (finalObservation.needsMoreWaiting) {
+      return { 
+        success: false, 
+        error: `Login still processing after ${waitAttempts * 2.5} seconds - authentication server may be slow`, 
+        nextStep: currentStep 
+      };
+    }
+    
     if (!loginSuccessful) {
-      const errorMessage = submitObservation.hasErrors ? 
-        submitObservation.errors.join(', ') : 
-        'Still on login page after submission';
+      const errorMessage = finalObservation.hasErrors ? 
+        finalObservation.errors.join(', ') : 
+        'Still on login page after submission with no processing indicators';
       return { success: false, error: errorMessage, nextStep: currentStep };
     }
     
