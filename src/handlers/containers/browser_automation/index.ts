@@ -173,8 +173,6 @@ const findElementsTool = createTool({
       
       const elements = await page.locator(context.selector).all();
       console.log(`Found ${elements.length} elements matching: ${context.selector}`);
-    
-      
       browserManager.updateActivity();
       
       return {
@@ -727,9 +725,9 @@ export const handler = async (event: any): Promise<any> => {
     const result = await genericBrowserAgent.generate(event.input, {
       threadId,
       resourceId: "generic-browser-automation",
-      maxSteps: 100,
+      maxSteps: 28,
       maxRetries: 0,
-      maxTokens: 15000
+      maxTokens: 8000
     });
 
     const processingTime = Date.now() - startTime;
