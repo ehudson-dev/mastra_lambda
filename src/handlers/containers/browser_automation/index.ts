@@ -148,7 +148,7 @@ const findElementsTool = createTool({
     selector: z.string().describe('CSS selector to find elements'),
     waitFor: z.boolean().default(false).describe('Whether to wait for elements to appear'),
     timeout: z.number().default(5000).describe('Timeout for waiting'),
-    getInfo: z.boolean().default(true).describe('Whether to return detailed info about found elements'),
+    getInfo: z.boolean().default(false).describe('Whether to return detailed info about found elements'),
   }),
   outputSchema: z.object({
     success: z.boolean(),
@@ -525,8 +525,8 @@ const analyzePageTool = createTool({
   id: 'analyze-page',
   description: 'Analyze the current page structure and content',
   inputSchema: z.object({
-    includeText: z.boolean().default(true).describe('Include text content analysis'),
-    includeStructure: z.boolean().default(true).describe('Include HTML structure analysis'),
+    includeText: z.boolean().default(false).describe('Include text content analysis'),
+    includeStructure: z.boolean().default(false).describe('Include HTML structure analysis'),
     maxTextLength: z.number().default(1000).describe('Maximum length of text content to return'),
   }),
   outputSchema: z.object({
