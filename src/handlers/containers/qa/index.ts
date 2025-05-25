@@ -477,71 +477,409 @@ const saveScreenshotToS3 = async (screenshot: Buffer, name: string, description:
   }
 };
 
+
+// Enhanced diagnostic version for React form analysis
 const performLogin = async (page: Page, credentials: any): Promise<void> => {
-  if (credentials.loginUrl) {
-    await page.goto(credentials.loginUrl);
-  }
+  try {
+    console.log('=== STARTING ENHANCED LOGIN DIAGNOSTIC ===');
 
-  // Common username selectors
-  const usernameSelectors = [
-    credentials.usernameSelector,
-    'input[name="username"]',
-    'input[name="email"]', 
-    'input[type="email"]',
-    'input[id*="username"]',
-    'input[id*="email"]',
-    '#username',
-    '#email'
-  ].filter(Boolean);
-
-  // Common password selectors
-  const passwordSelectors = [
-    credentials.passwordSelector,
-    'input[type="password"]',
-    'input[name="password"]',
-    'input[id*="password"]',
-    '#password'
-  ].filter(Boolean);
-
-  // Find and fill username
-  for (const selector of usernameSelectors) {
-    try {
-      await page.fill(selector as string, credentials.username, { timeout: 2000 });
-      break;
-    } catch (e) {
-      continue;
+    if (credentials.loginUrl) {
+      await page.goto(credentials.loginUrl);
     }
-  }
 
-  // Find and fill password
-  for (const selector of passwordSelectors) {
-    try {
-      await page.fill(selector as string, credentials.password, { timeout: 2000 });
-      break;
-    } catch (e) {
-      continue;
+    // Wait for page to be fully loaded and React to initialize
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(3000); // Give React extra time
+
+    console.log('=== ANALYZING PAGE STRUCTURE ===');
+    
+    // First, let's analyze ALL form elements on the page
+    const pageAnalysis = await page.evaluate(() => {
+      const forms = document.querySelectorAll('form');
+      const allInputs = document.querySelectorAll('input');
+      const buttons = document.querySelectorAll('button');
+      
+      const formData = Array.from(forms).map((form, index) => ({
+        index,
+        innerHTML: form.innerHTML.substring(0, 500), // First 500 chars
+        inputs: Array.from(form.querySelectorAll('input')).map(input => ({
+          type: input.type,
+          name: input.name,
+          id: input.id,
+          className: input.className,
+          placeholder: input.placeholder,
+          value: input.value,
+          ariaLabel: input.getAttribute('aria-label'),
+          disabled: input.disabled,
+          readonly: input.readOnly,
+          required: input.required,
+        }))
+      }));
+
+      const allInputData = Array.from(allInputs).map((input, index) => ({
+        index,
+        type: input.type,
+        name: input.name,
+        id: input.id,
+        className: input.className,
+        placeholder: input.placeholder,
+        value: input.value,
+        ariaLabel: input.getAttribute('aria-label'),
+        disabled: input.disabled,
+        readonly: input.readOnly,
+        required: input.required,
+        visible: input.offsetParent !== null,
+        tagName: input.tagName,
+        outerHTML: input.outerHTML.substring(0, 300)
+      }));
+
+      const buttonData = Array.from(buttons).map((button, index) => ({
+        index,
+        type: button.type,
+        textContent: button.textContent?.trim(),
+        className: button.className,
+        id: button.id,
+        disabled: button.disabled,
+        visible: button.offsetParent !== null,
+        outerHTML: button.outerHTML.substring(0, 300)
+      }));
+
+      return {
+        url: window.location.href,
+        title: document.title,
+        forms: formData,
+        allInputs: allInputData,
+        buttons: buttonData,
+        totalForms: forms.length,
+        totalInputs: allInputs.length,
+        totalButtons: buttons.length
+      };
+    });
+
+    console.log('=== PAGE ANALYSIS RESULTS ===');
+    console.log(`URL: ${pageAnalysis.url}`);
+    console.log(`Title: ${pageAnalysis.title}`);
+    console.log(`Forms found: ${pageAnalysis.totalForms}`);
+    console.log(`Total inputs: ${pageAnalysis.totalInputs}`);
+    console.log(`Total buttons: ${pageAnalysis.totalButtons}`);
+
+    console.log('\n=== ALL INPUTS ANALYSIS ===');
+    pageAnalysis.allInputs.forEach((input, index) => {
+      console.log(`Input ${index}:`);
+      console.log(`  Type: ${input.type}`);
+      console.log(`  Name: ${input.name}`);
+      console.log(`  ID: ${input.id}`);
+      console.log(`  Placeholder: ${input.placeholder}`);
+      console.log(`  Value: ${input.value}`);
+      console.log(`  Visible: ${input.visible}`);
+      console.log(`  Disabled: ${input.disabled}`);
+      console.log(`  Class: ${input.className.substring(0, 50)}...`);
+      console.log(`  HTML: ${input.outerHTML}`);
+      console.log('---');
+    });
+
+    console.log('\n=== BUTTON ANALYSIS ===');
+    pageAnalysis.buttons.forEach((button, index) => {
+      console.log(`Button ${index}:`);
+      console.log(`  Type: ${button.type}`);
+      console.log(`  Text: ${button.textContent}`);
+      console.log(`  ID: ${button.id}`);
+      console.log(`  Visible: ${button.visible}`);
+      console.log(`  Disabled: ${button.disabled}`);
+      console.log(`  HTML: ${button.outerHTML}`);
+      console.log('---');
+    });
+
+    // Now let's test our selectors systematically
+    console.log('\n=== TESTING USERNAME SELECTORS ===');
+
+    const usernameSelectors = [
+      'input[name="username"]',
+      'input[name="email"]', 
+      'input[type="email"]',
+      'input[id*="username"]',
+      'input[id*="email"]',
+      '#username',
+      '#email',
+      'input[placeholder*="email" i]',
+      'input[placeholder*="username" i]',
+      'input[aria-label*="email" i]',
+      'input[aria-label*="username" i]',
+      'form input[type="text"]:first-of-type',
+      'form input:not([type="password"]):not([type="hidden"]):not([type="submit"]):first-of-type',
+    ];
+
+    let usernameField : any = null;
+    let workingUsernameSelector = '';
+
+    for (const selector of usernameSelectors) {
+      try {
+        console.log(`Testing selector: ${selector}`);
+        const elements = await page.locator(selector).all();
+        console.log(`  Found ${elements.length} elements`);
+        
+        for (let i = 0; i < elements.length; i++) {
+          const element = elements[i];
+          const isVisible = await element.isVisible();
+          const isEnabled = await element.isEnabled();
+          console.log(`  Element ${i}: visible=${isVisible}, enabled=${isEnabled}`);
+          
+          if (isVisible && isEnabled) {
+            // Get element details
+            const elementInfo = await element.evaluate((el: any) => ({
+              tagName: el.tagName,
+              type: el.type,
+              name: el.name,
+              id: el.id,
+              placeholder: el.placeholder,
+              value: el.value,
+              className: el.className,
+            }));
+            console.log(`  ✓ VIABLE ELEMENT:`, elementInfo);
+            
+            if (!usernameField) {
+              usernameField = element;
+              workingUsernameSelector = selector;
+              console.log(`  ✓ SELECTED as username field`);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.log(`  ✗ Selector failed: ${error.message}`);
+      }
     }
-  }
 
-  // Submit form
-  const submitSelectors = [
-    credentials.submitSelector,
-    'button[type="submit"]',
-    'input[type="submit"]',
-    'button:has-text("Login")',
-    'button:has-text("Sign in")'
-  ].filter(Boolean);
-
-  for (const selector of submitSelectors) {
-    try {
-      await page.click(selector as string, { timeout: 2000 });
-      break;
-    } catch (e) {
-      continue;
+    if (!usernameField) {
+      throw new Error('No username field found with any selector');
     }
-  }
 
-  await page.waitForTimeout(2000);
+    console.log(`\n=== USING USERNAME SELECTOR: ${workingUsernameSelector} ===`);
+
+    // Now let's try different methods to fill the username
+    console.log('=== TESTING USERNAME FILL METHODS ===');
+
+    // Method 1: Standard fill
+    try {
+      console.log('Method 1: Standard fill...');
+      await usernameField.click({ timeout: 5000 });
+      await usernameField.clear();
+      await usernameField.fill(credentials.username);
+      
+      const newValue = await usernameField.inputValue();
+      console.log(`✓ Standard fill result: "${newValue}"`);
+      
+      if (newValue === credentials.username) {
+        console.log('✓ Standard fill successful!');
+      } else {
+        throw new Error(`Fill failed - expected "${credentials.username}", got "${newValue}"`);
+      }
+    } catch (error: any) {
+      console.log(`✗ Standard fill failed: ${error.message}`);
+      
+      // Method 2: Keyboard input
+      try {
+        console.log('Method 2: Keyboard input...');
+        await usernameField.click();
+        await page.keyboard.press('Control+a');
+        await page.keyboard.type(credentials.username);
+        
+        const newValue = await usernameField.inputValue();
+        console.log(`Keyboard input result: "${newValue}"`);
+        
+        if (newValue !== credentials.username) {
+          throw new Error(`Keyboard input failed - expected "${credentials.username}", got "${newValue}"`);
+        }
+        console.log('✓ Keyboard input successful!');
+      } catch (keyboardError: any) {
+        console.log(`✗ Keyboard input failed: ${keyboardError.message}`);
+        
+        // Method 3: JavaScript setValue
+        try {
+          console.log('Method 3: JavaScript setValue...');
+          await usernameField.evaluate((el, value) => {
+            el.value = value;
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            el.dispatchEvent(new Event('change', { bubbles: true }));
+          }, credentials.username);
+          
+          const newValue = await usernameField.inputValue();
+          console.log(`JavaScript setValue result: "${newValue}"`);
+          
+          if (newValue !== credentials.username) {
+            throw new Error(`JavaScript setValue failed - expected "${credentials.username}", got "${newValue}"`);
+          }
+          console.log('✓ JavaScript setValue successful!');
+        } catch (jsError: any) {
+          console.log(`✗ JavaScript setValue failed: ${jsError.message}`);
+          throw new Error('All username fill methods failed');
+        }
+      }
+    }
+
+    // Now test password field
+    console.log('\n=== TESTING PASSWORD SELECTORS ===');
+
+    const passwordSelectors = [
+      'input[type="password"]',
+      'input[name="password"]',
+      'input[id*="password"]',
+      '#password',
+      'input[placeholder*="password" i]',
+      'input[aria-label*="password" i]',
+    ];
+
+    let passwordField : any = null;
+    let workingPasswordSelector = '';
+
+    for (const selector of passwordSelectors) {
+      try {
+        console.log(`Testing password selector: ${selector}`);
+        const elements = await page.locator(selector).all();
+        console.log(`  Found ${elements.length} elements`);
+        
+        for (let i = 0; i < elements.length; i++) {
+          const element = elements[i];
+          const isVisible = await element.isVisible();
+          const isEnabled = await element.isEnabled();
+          console.log(`  Element ${i}: visible=${isVisible}, enabled=${isEnabled}`);
+          
+          if (isVisible && isEnabled) {
+            const elementInfo = await element.evaluate((el: any) => ({
+              tagName: el.tagName,
+              type: el.type,
+              name: el.name,
+              id: el.id,
+              placeholder: el.placeholder,
+              value: el.value ? '[HIDDEN]' : '',
+            }));
+            console.log(`  ✓ VIABLE ELEMENT:`, elementInfo);
+            
+            if (!passwordField) {
+              passwordField = element;
+              workingPasswordSelector = selector;
+              console.log(`  ✓ SELECTED as password field`);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.log(`  ✗ Password selector failed: ${error.message}`);
+      }
+    }
+
+    if (!passwordField) {
+      throw new Error('No password field found');
+    }
+
+    console.log(`\n=== USING PASSWORD SELECTOR: ${workingPasswordSelector} ===`);
+
+    // Fill password using the method that worked for username
+    console.log('=== FILLING PASSWORD ===');
+    try {
+      await passwordField.click({ timeout: 5000 });
+      await passwordField.clear();
+      await passwordField.fill(credentials.password);
+      console.log('✓ Password filled successfully');
+    } catch (error) {
+      console.log('Password fill failed, trying keyboard input...');
+      await passwordField.click();
+      await page.keyboard.press('Control+a');
+      await page.keyboard.type(credentials.password);
+      console.log('✓ Password filled with keyboard');
+    }
+
+    // Find submit button
+    console.log('\n=== TESTING SUBMIT SELECTORS ===');
+
+    const submitSelectors = [
+      'button[type="submit"]',
+      'input[type="submit"]',
+      'button:has-text("Sign in")',
+      'button:has-text("Sign In")',
+      'button:has-text("Login")',
+      'button:has-text("Log in")',
+      'form button:not([type="button"])',
+      'form button:last-of-type',
+    ];
+
+    let submitButton: any = null;
+    let workingSubmitSelector = '';
+
+    for (const selector of submitSelectors) {
+      try {
+        console.log(`Testing submit selector: ${selector}`);
+        const elements = await page.locator(selector).all();
+        console.log(`  Found ${elements.length} elements`);
+        
+        for (let i = 0; i < elements.length; i++) {
+          const element = elements[i];
+          const isVisible = await element.isVisible();
+          const isEnabled = await element.isEnabled();
+          console.log(`  Element ${i}: visible=${isVisible}, enabled=${isEnabled}`);
+          
+          if (isVisible && isEnabled) {
+            const elementInfo = await element.evaluate((el: any) => ({
+              tagName: el.tagName,
+              type: el.type,
+              textContent: el.textContent?.trim(),
+              id: el.id,
+              className: el.className,
+            }));
+            console.log(`  ✓ VIABLE ELEMENT:`, elementInfo);
+            
+            if (!submitButton) {
+              submitButton = element;
+              workingSubmitSelector = selector;
+              console.log(`  ✓ SELECTED as submit button`);
+            }
+          }
+        }
+      } catch (error: any) {
+        console.log(`  ✗ Submit selector failed: ${error.message}`);
+      }
+    }
+
+    if (!submitButton) {
+      console.log('No submit button found, trying form submission...');
+      await page.keyboard.press('Enter');
+      console.log('✓ Submitted with Enter key');
+    } else {
+      console.log(`\n=== USING SUBMIT SELECTOR: ${workingSubmitSelector} ===`);
+      await submitButton.click();
+      console.log('✓ Submit button clicked');
+    }
+
+    // Wait for login to complete
+    console.log('\n=== WAITING FOR LOGIN COMPLETION ===');
+    await page.waitForTimeout(5000);
+    
+    const finalUrl = page.url();
+    console.log(`Final URL: ${finalUrl}`);
+    
+    // Check if we're still on login page
+    if (finalUrl.includes('/auth/login') || finalUrl.includes('login')) {
+      console.log('⚠️  Still on login page - login may have failed');
+      
+      // Check for error messages
+      const errorMessages = await page.evaluate(() => {
+        const errorElements = document.querySelectorAll('[role="alert"], .error, .alert-danger, .text-red-500, .text-destructive');
+        return Array.from(errorElements).map(el => el.textContent?.trim()).filter(Boolean);
+      });
+      
+      if (errorMessages.length > 0) {
+        console.log('Error messages found:', errorMessages);
+      }
+    } else {
+      console.log('✓ Login appears successful - URL changed');
+    }
+
+    console.log('=== LOGIN DIAGNOSTIC COMPLETE ===');
+
+  } catch (error: any) {
+    console.error('=== LOGIN DIAGNOSTIC FAILED ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    throw error;
+  }
 };
 
 // Flexible Browser Agent
@@ -596,7 +934,7 @@ const flexibleBrowserAgent = new Agent({
     Provide clear, actionable results including:
     - What actions were performed successfully
     - Any issues encountered
-    - Screenshots taken (with descriptions)
+    - Screenshots taken
     - Data extracted
     - Suggestions for follow-up actions
     
