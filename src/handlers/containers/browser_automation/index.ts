@@ -170,6 +170,8 @@ const findElementsTool = createTool({
   }),
   execute: async ({ context }): Promise<any> => {
     try {
+
+      console.log(`FIND ELEMENTS CALLED WITH:`, JSON.stringify(context));
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
       
@@ -559,6 +561,7 @@ const analyzePageTool = createTool({
   }),
   execute: async ({ context }): Promise<any> => {
     try {
+      console.log(`ANALYZE PAGE CALLED WITH:`, JSON.stringify(context));
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
       
