@@ -930,6 +930,7 @@ export const handler = async (event: any): Promise<any> => {
       threadId,
       resourceId: "generic-browser-automation",
       maxSteps: 100,
+      maxRetries: 0,
       maxTokens: 15000
     });
 
