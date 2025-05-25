@@ -122,7 +122,7 @@ const navigateTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Navigation complete: ${title} (${url})`);
-      
+      await new Promise(resolve => setTimeout(resolve, 15000));
       return {
         success: true,
         url,
@@ -156,8 +156,6 @@ const findElementsTool = createTool({
   }),
   execute: async ({ context }): Promise<any> => {
     try {
-
-      console.log(`FIND ELEMENTS CALLED WITH:`, JSON.stringify(context));
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
       
@@ -174,7 +172,7 @@ const findElementsTool = createTool({
       const elements = await page.locator(context.selector).all();
       console.log(`Found ${elements.length} elements matching: ${context.selector}`);
       browserManager.updateActivity();
-      
+      await new Promise(resolve => setTimeout(resolve, 15000));
       return {
         success: true,
         count: elements.length,
@@ -244,7 +242,7 @@ const clickTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Successfully clicked: ${context.selector}`);
-      
+      await new Promise(resolve => setTimeout(resolve, 15000));
       return {
         success: true,
         elementFound: true,
@@ -316,7 +314,7 @@ const typeTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Successfully typed into: ${context.selector}`);
-      
+      await new Promise(resolve => setTimeout(resolve, 15000));
       return {
         success: true,
         elementFound: true,
@@ -372,7 +370,7 @@ const waitTool = createTool({
           break;
           
         case 'navigation':
-          await page.waitForLoadState('networkidle', { timeout: context.timeout });
+          await page.waitForLoadState('load', { timeout: context.timeout });
           break;
           
         case 'function':
@@ -445,7 +443,7 @@ const screenshotTool = createTool({
       
       browserManager.updateActivity();
       console.log(`Screenshot saved: ${s3Url}`);
-      
+      await new Promise(resolve => setTimeout(resolve, 15000));
       return {
         success: true,
         filename: context.filename,
@@ -504,7 +502,6 @@ const analyzePageTool = createTool({
   }),
   execute: async ({ context }): Promise<any> => {
     try {
-      console.log(`ANALYZE PAGE CALLED WITH:`, JSON.stringify(context));
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
       
@@ -533,7 +530,7 @@ const analyzePageTool = createTool({
       
       browserManager.updateActivity();
       console.log('Page analysis completed');
-      
+      await new Promise(resolve => setTimeout(resolve, 15000));
       return analysis;
     } catch (error: any) {
       console.error('Page analysis failed:', error);
@@ -629,7 +626,7 @@ const enhancedInstructions = `
 Browser automation agent. Complete ALL steps of multi-step tasks.
 
 CRITICAL EFFICIENCY RULES:
-- NEVER set getInfo:true unless debugging failures
+- You are rate limited to 20,000 token uses per minute. A tool call uses on average 2,500 to 3,000 tokens. Wait 15 seconds between tool uses.
 - Use ONLY standard CSS selectors (no jQuery syntax)
 
 VALID CSS SELECTORS:
@@ -673,6 +670,8 @@ const genericBrowserAgent = new Agent({
     type: typeTool,
     wait: waitTool,
     screenshot: screenshotTool,
+    analyzePage: analyzePageTool,
+    executeJs: executeJSTool
   },
   memory: new Memory({
     storage: new DynamoDBStore({
@@ -723,9 +722,9 @@ export const handler = async (event: any): Promise<any> => {
     const result = await genericBrowserAgent.generate(event.input, {
       threadId,
       resourceId: "generic-browser-automation",
-      maxSteps: 3,
+      maxSteps: 25,
       maxRetries: 0,
-      maxTokens: 6000
+      maxTokens: 64000
     });
 
     const processingTime = Date.now() - startTime;
