@@ -723,9 +723,9 @@ export const handler = async (event: any): Promise<any> => {
     const result = await genericBrowserAgent.generate(event.input, {
       threadId,
       resourceId: "generic-browser-automation",
-      maxSteps: 28,
+      maxSteps: 3,
       maxRetries: 0,
-      maxTokens: 8000
+      maxTokens: 6000
     });
 
     const processingTime = Date.now() - startTime;
