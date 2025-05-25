@@ -181,9 +181,9 @@ export class MastraLambdaStack extends cdk.Stack {
     // Container QA function (the actual worker)
     const qaContainerFunction = new lambda.Function(
       this,
-      "QAContainerFunction",
+      "BrowserAutomationFunction",
       {
-        code: lambda.Code.fromAssetImage("./src/handlers/containers/qa"),
+        code: lambda.Code.fromAssetImage("./src/handlers/containers/browser_automation"),
         handler: lambda.Handler.FROM_IMAGE,
         runtime: lambda.Runtime.FROM_IMAGE,
         role: LambdaRole,
