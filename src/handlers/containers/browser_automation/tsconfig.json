@@ -25,13 +25,26 @@
     ],
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "./tools/*": ["./tools/*"],
+      "./utils": ["./utils"],
+      "./types": ["./types"],
+      "./browser-context-manager": ["./browser-context-manager"],
+      "./rate-limiting": ["./rate-limiting"],
+      "./agent": ["./agent"]
+    }
   },
   "include": [
-    "*.ts"
+    "*.ts",
+    "tools/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "*.js"
+    "*.js",
+    "*.mjs"
   ]
 }
