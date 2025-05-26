@@ -110,7 +110,7 @@ export const genericBrowserAgent = new Agent({
       },
     }),
     options: {
-      lastMessages: 3, // Increased for more context
+      lastMessages: 1, // only give the agent context did the last step succeed or fail
     },
   }),
 });
