@@ -4,7 +4,7 @@ import { RateLimitState } from "../../types";
 
 let currentRateLimit: RateLimitState | null = null;
 
-// Custom fetch with dynamic rate limiting
+// Custom fetch with dynamic rate limiting and retry logic
 export const createRateLimitingFetch = (originalFetch = fetch) => {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === 'string' ? input : (input as Request).url;
@@ -19,38 +19,92 @@ export const createRateLimitingFetch = (originalFetch = fetch) => {
       await checkAndWaitForRateLimit();
     }
 
-    console.log(`🌐 Making Anthropic API call at ${new Date().toISOString()}`);
+    // Retry logic for overloaded errors
+    const maxRetries = 3;
+    const retryDelays = [30000, 60000]; // 30s, 1min for first two retries
     
-    try {
-      // Make the actual API call
-      const response = await originalFetch(input, init);
+    for (let retryCount = 0; retryCount < maxRetries; retryCount++) {
+      console.log(`🌐 Making Anthropic API call at ${new Date().toISOString()}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries - 1})` : ''}`);
+      
+      try {
+        // Make the actual API call
+        const response = await originalFetch(input, init);
 
-      //log anthropic headers in cloudwatch
-      let headers = {} as any;
-      response.headers.forEach((value: string, key: string) =>{
-        headers[key] = value;
-      })
-      console.log(`Anthropic Response Headers: \n ${JSON.stringify(headers)}`)
+        // Log anthropic headers in cloudwatch
+        let headers = {} as any;
+        response.headers.forEach((value: string, key: string) => {
+          headers[key] = value;
+        });
+        console.log(`Anthropic Response Headers: \n ${JSON.stringify(headers)}`);
 
-      // Extract and update rate limit information from response headers
-      updateRateLimitFromHeaders(response.headers);
-      
-      // Log current rate limit status
-      logRateLimitStatus();
-      
-      return response;
-      
-    } catch (error: any) {
-      console.error('❌ API call failed:', error.message);
-      
-      // If it's a rate limit error despite our protection, add penalty delay
-      if (error.message?.includes('rate limit')) {
-        console.log('🚨 Rate limit hit despite protection - adding penalty delay');
-        await new Promise(resolve => setTimeout(resolve, 60000)); // 60s penalty
+        // Check for overloaded error (529)
+        if (response.status === 529) {
+          const responseText = await response.text();
+          console.log(`🚨 Anthropic API overloaded (529) - Response: ${responseText}`);
+          
+          // Check if this is specifically an overloaded error
+          try {
+            const errorData = JSON.parse(responseText);
+            if (errorData?.error?.type === 'overloaded_error') {
+              // If we've exhausted retries, throw the error
+              if (retryCount >= maxRetries - 1) {
+                console.error(`❌ Anthropic API overloaded after ${maxRetries} attempts - giving up`);
+                throw new Error(`Anthropic API overloaded after ${maxRetries} attempts: ${errorData.error.message}`);
+              }
+              
+              // Wait before retry
+              const delay = retryDelays[retryCount];
+              console.log(`⏰ Waiting ${delay/1000}s before retry ${retryCount + 1}/${maxRetries - 1}...`);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              
+              // Continue to next retry iteration
+              continue;
+            }
+          } catch (parseError) {
+            console.error('Error parsing overloaded response:', parseError);
+          }
+        }
+
+        // For successful responses or non-overloaded errors, extract rate limit info and return
+        if (response.ok) {
+          updateRateLimitFromHeaders(response.headers);
+          logRateLimitStatus();
+          return response;
+        } else {
+          // For other error types, don't retry - just handle rate limit info and throw
+          updateRateLimitFromHeaders(response.headers);
+          const errorText = await response.text();
+          throw new Error(`Anthropic API error (${response.status}): ${errorText}`);
+        }
+        
+      } catch (error: any) {
+        console.error(`❌ API call failed (attempt ${retryCount + 1}/${maxRetries}):`, error.message);
+        
+        // If it's an overloaded error that we're retrying, continue to retry logic
+        if (error.message?.includes('Anthropic API overloaded after') && retryCount < maxRetries - 1) {
+          continue;
+        }
+        
+        // If it's a rate limit error despite our protection, add penalty delay
+        if (error.message?.includes('rate limit')) {
+          console.log('🚨 Rate limit hit despite protection - adding penalty delay');
+          await new Promise(resolve => setTimeout(resolve, 60000)); // 60s penalty
+        }
+        
+        // For the final retry or non-overloaded errors, throw immediately
+        if (retryCount >= maxRetries - 1 || !error.message?.includes('overloaded')) {
+          throw error;
+        }
+        
+        // Wait before retry for other errors that might benefit from retry
+        const delay = retryDelays[retryCount] || 60000;
+        console.log(`⏰ Waiting ${delay/1000}s before retry due to error...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-      
-      throw error;
     }
+    
+    // This should never be reached, but just in case
+    throw new Error('Unexpected end of retry loop');
   };
 };
 
