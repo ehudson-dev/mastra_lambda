@@ -12,7 +12,7 @@ export const fillFormTool = createTool({
         z.object({
           selector: z.string(),
           value: z.string(),
-          type: z.enum(['email', 'password', 'search', 'text']).optional(),
+          type: z.enum(['email', 'password', 'search', 'text', 'username']).optional(),
           clear: z.boolean().default(true),
         })
       )

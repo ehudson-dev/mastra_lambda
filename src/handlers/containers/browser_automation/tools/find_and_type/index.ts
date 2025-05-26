@@ -9,7 +9,7 @@ export const findAndTypeTool = createTool({
   inputSchema: z.object({
     selector: z.string().describe("CSS selector for input element"),
     text: z.string().describe("Text to type"),
-    type: z.enum(['email', 'password', 'search', 'text']).optional().describe("Input type for smart detection"),
+    type: z.enum(['email', 'password', 'search', 'text', 'username']).optional().describe("Input type for smart detection"),
     elementIndex: z.number().default(0).describe("Index if multiple elements match"),
     clear: z.boolean().default(true).describe("Clear field before typing"),
     pressEnter: z.boolean().default(false).describe("Press Enter after typing"),

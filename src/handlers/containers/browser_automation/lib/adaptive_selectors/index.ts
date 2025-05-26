@@ -8,25 +8,24 @@ export interface ElementSearchResult {
 }
 
 const userSelectors = [
-  'input[type="email"]',
-  'input[name="email"]',
-  'input[id="email"]',
-  'input[name*="email"]',
-  'input[id*="email"]',
-  'input[placeholder*="email" i]',
-  'input[aria-label*="email" i]',
-  'input[class*="email"]',
-  'input[name="user"]',
-  'input[name="username"]',
-  'input[name="login"]',
-];
+        'input[type="email"]',
+        'input[name="email"]',
+        'input[id="email"]',
+        'input[name*="email"]',
+        'input[id*="email"]',
+        'input[placeholder*="email" i]',
+        'input[aria-label*="email" i]',
+        'input[class*="email"]',
+        'input[name="user"]',
+        'input[name="username"]',
+        'input[name="login"]',
+        ];
 
 export class AdaptiveSelectorEngine {
   // Common patterns for different input types
   private static readonly SELECTOR_PATTERNS = {
-    user: userSelectors,
-    userName: userSelectors,
     email: userSelectors,
+    username: userSelectors,
     password: [
       'input[type="password"]',
       'input[name="password"]',
