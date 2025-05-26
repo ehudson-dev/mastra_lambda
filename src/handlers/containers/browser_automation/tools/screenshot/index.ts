@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/screenshot.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -23,9 +22,7 @@ export const screenshotTool = createTool({
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    filename: z.string(),
-    s3Url: z.string(),
-    description: z.string(),
+    saved: z.boolean(), // More concise than separate filename/s3Url
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
@@ -58,18 +55,14 @@ export const screenshotTool = createTool({
 
       return {
         success: true,
-        filename: context.filename,
-        s3Url,
-        description: context.description,
+        saved: true,
       };
     } catch (error: any) {
       console.error("Screenshot failed:", error);
       return {
         success: false,
-        filename: context.filename,
-        s3Url: "",
-        description: context.description,
-        error: error.message,
+        saved: false,
+        error: error.message.substring(0, 100),
       };
     }
   },

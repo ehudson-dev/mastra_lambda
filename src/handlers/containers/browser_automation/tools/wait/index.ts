@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/wait.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -8,7 +7,7 @@ export const waitTool = createTool({
   description: "Wait for 10 seconds",
   outputSchema: z.object({
     success: z.boolean(),
-    waited: z.number(),
+    ms: z.number(), // Shortened from 'waited'
     error: z.string().optional(),
   }),
   execute: async (): Promise<any> => {
@@ -18,21 +17,20 @@ export const waitTool = createTool({
 
       await new Promise((resolve) => setTimeout(resolve, 10000));
 
-      const waited = Date.now() - startTime;
+      const ms = Date.now() - startTime;
       browserManager.updateActivity();
-      console.log(`Wait completed in ${waited}ms`);
+      console.log(`Wait completed in ${ms}ms`);
 
       return {
         success: true,
-        waited,
+        ms,
       };
     } catch (error: any) {
       console.error("Wait failed:", error);
-      const waited = Date.now() - Date.now();
       return {
         success: false,
-        waited,
-        error: error.message,
+        ms: 0,
+        error: error.message.substring(0, 80),
       };
     }
   },

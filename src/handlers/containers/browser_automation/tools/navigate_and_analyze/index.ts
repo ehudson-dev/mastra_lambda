@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/navigate-and-analyze.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -22,14 +21,14 @@ export const navigateAndAnalyzeTool = createTool({
       .describe("Include basic form info"),
   }),
   outputSchema: z.object({
-    navigationSuccess: z.boolean(),
+    success: z.boolean(), // Renamed from 'navigationSuccess'
     url: z.string(),
     title: z.string(),
-    hasLoginForm: z.boolean(),
-    hasSearchElements: z.boolean(),
-    formCount: z.number(),
-    buttonCount: z.number(),
-    inputCount: z.number(),
+    login: z.boolean(), // Shortened from 'hasLoginForm'
+    search: z.boolean(), // Shortened from 'hasSearchElements'
+    forms: z.number(), // Shortened from 'formCount'
+    buttons: z.number(), // Shortened from 'buttonCount'
+    inputs: z.number(), // Shortened from 'inputCount'
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
@@ -39,25 +38,21 @@ export const navigateAndAnalyzeTool = createTool({
 
       console.log(`Navigate and analyze: ${context.url}`);
 
-      // Navigate
       await page.goto(context.url, {
         waitUntil: context.waitUntil as any,
         timeout: context.timeout,
       });
 
-      // Brief wait for page to settle
       await page.waitForTimeout(2000);
 
       const url = page.url();
       const title = await page.title();
 
-      // Quick analysis without heavy data
       const analysis = await page.evaluate(() => {
         const forms = document.querySelectorAll("form");
         const buttons = document.querySelectorAll("button");
         const inputs = document.querySelectorAll("input");
 
-        // Check for login indicators
         const hasLoginForm = Array.from(forms).some(
           (form) =>
             form.innerHTML.toLowerCase().includes("password") ||
@@ -65,7 +60,6 @@ export const navigateAndAnalyzeTool = createTool({
             form.innerHTML.toLowerCase().includes("sign in")
         );
 
-        // Check for search indicators
         const hasSearchElements = Array.from(inputs).some(
           (input) =>
             input.placeholder?.toLowerCase().includes("search") ||
@@ -73,37 +67,37 @@ export const navigateAndAnalyzeTool = createTool({
         );
 
         return {
-          hasLoginForm,
-          hasSearchElements,
-          formCount: forms.length,
-          buttonCount: buttons.length,
-          inputCount: inputs.length,
+          login: hasLoginForm,
+          search: hasSearchElements,
+          forms: forms.length,
+          buttons: buttons.length,
+          inputs: inputs.length,
         };
       });
 
       browserManager.updateActivity();
       console.log(
-        `✅ Navigated to ${url} and analyzed: ${analysis.formCount} forms, ${analysis.inputCount} inputs`
+        `✅ Navigated to ${url} - ${analysis.forms}f ${analysis.inputs}i ${analysis.buttons}b`
       );
 
       return {
-        navigationSuccess: true,
-        url,
-        title,
+        success: true,
+        url: url.length > 100 ? url.substring(0, 100) + '...' : url, // Truncate long URLs
+        title: title.substring(0, 100), // Truncate long titles
         ...analysis,
       };
     } catch (error: any) {
       console.error("Navigate and analyze failed:", error);
       return {
-        navigationSuccess: false,
+        success: false,
         url: context.url,
         title: "",
-        hasLoginForm: false,
-        hasSearchElements: false,
-        formCount: 0,
-        buttonCount: 0,
-        inputCount: 0,
-        error: error.message,
+        login: false,
+        search: false,
+        forms: 0,
+        buttons: 0,
+        inputs: 0,
+        error: error.message.substring(0, 100),
       };
     }
   },

@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/find-and-click.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -27,9 +26,9 @@ export const findAndClickTool = createTool({
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    elementsFound: z.number(),
+    found: z.number(), // Shortened from 'elementsFound'
     clicked: z.boolean(),
-    elementText: z.string().optional(),
+    text: z.string().optional(), // Shortened from 'elementText' and truncated
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
@@ -41,7 +40,6 @@ export const findAndClickTool = createTool({
         `Find and click: ${context.selector} (index: ${context.elementIndex})`
       );
 
-      // Wait for and find elements
       await page.waitForSelector(context.selector, {
         timeout: context.waitTimeout,
       });
@@ -50,29 +48,26 @@ export const findAndClickTool = createTool({
       if (elements.length === 0) {
         return {
           success: false,
-          elementsFound: 0,
+          found: 0,
           clicked: false,
-          error: `No elements found for selector: ${context.selector}`,
+          error: `No elements: ${context.selector}`,
         };
       }
 
       if (context.elementIndex >= elements.length) {
         return {
           success: false,
-          elementsFound: elements.length,
+          found: elements.length,
           clicked: false,
-          error: `Element index ${context.elementIndex} out of range (found ${elements.length} elements)`,
+          error: `Index ${context.elementIndex} > ${elements.length-1}`,
         };
       }
 
-      // Get element text for verification
       const element = page.locator(context.selector).nth(context.elementIndex);
       const elementText = (await element.textContent()) || "";
 
-      // Click the element
       await element.click({ force: context.force });
 
-      // Wait after click for any resulting changes
       if (context.waitAfterClick > 0) {
         await page.waitForTimeout(context.waitAfterClick);
       }
@@ -84,17 +79,17 @@ export const findAndClickTool = createTool({
 
       return {
         success: true,
-        elementsFound: elements.length,
+        found: elements.length,
         clicked: true,
-        elementText: elementText.substring(0, 100), // Limit text length
+        text: elementText.substring(0, 50), // Truncate element text
       };
     } catch (error: any) {
       console.error("Find and click failed:", error);
       return {
         success: false,
-        elementsFound: 0,
+        found: 0,
         clicked: false,
-        error: error.message,
+        error: error.message.substring(0, 100),
       };
     }
   },

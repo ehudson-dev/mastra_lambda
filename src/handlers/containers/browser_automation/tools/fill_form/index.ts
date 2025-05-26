@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/fill-form.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -27,9 +26,9 @@ export const fillFormTool = createTool({
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    fieldsFilled: z.number(),
+    filled: z.number(), // Shortened from 'fieldsFilled'
     submitted: z.boolean(),
-    errors: z.array(z.string()),
+    errors: z.number(), // Return count instead of array of error messages
   }),
   execute: async ({ context }): Promise<any> => {
     try {
@@ -39,7 +38,7 @@ export const fillFormTool = createTool({
       console.log(`Fill form with ${context.fields.length} fields`);
 
       const errors: string[] = [];
-      let fieldsFilled = 0;
+      let filled = 0;
 
       // Fill each field
       for (const field of context.fields) {
@@ -52,7 +51,7 @@ export const fillFormTool = createTool({
           }
 
           await element.fill(field.value);
-          fieldsFilled++;
+          filled++;
 
           if (context.waitBetweenFields > 0) {
             await page.waitForTimeout(context.waitBetweenFields);
@@ -60,7 +59,7 @@ export const fillFormTool = createTool({
 
           console.log(`✓ Filled field: ${field.selector}`);
         } catch (error: any) {
-          const errorMsg = `Failed to fill ${field.selector}: ${error.message}`;
+          const errorMsg = `Failed ${field.selector}: ${error.message}`;
           errors.push(errorMsg);
           console.error(errorMsg);
         }
@@ -75,28 +74,28 @@ export const fillFormTool = createTool({
           submitted = true;
           console.log(`✓ Clicked submit: ${context.submitSelector}`);
         } catch (error: any) {
-          errors.push(`Failed to submit: ${error.message}`);
+          errors.push(`Submit failed: ${error.message}`);
         }
       }
 
       browserManager.updateActivity();
       console.log(
-        `✅ Form fill completed: ${fieldsFilled}/${context.fields.length} fields filled`
+        `✅ Form fill completed: ${filled}/${context.fields.length} fields filled`
       );
 
       return {
         success: errors.length === 0,
-        fieldsFilled,
+        filled,
         submitted,
-        errors,
+        errors: errors.length, // Return count, not full error messages
       };
     } catch (error: any) {
       console.error("Form fill failed:", error);
       return {
         success: false,
-        fieldsFilled: 0,
+        filled: 0,
         submitted: false,
-        errors: [error.message],
+        errors: 1,
       };
     }
   },

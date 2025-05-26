@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/find-elements.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -51,8 +50,7 @@ export const findElementsTool = createTool({
       return {
         success: false,
         count: 0,
-        elements: [],
-        error: error.message,
+        error: error.message.substring(0, 100), // Truncate error messages
       };
     }
   },

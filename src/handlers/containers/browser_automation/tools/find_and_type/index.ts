@@ -1,4 +1,3 @@
-// src/handlers/containers/browser_automation/tools/find-and-type.ts
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
@@ -22,9 +21,8 @@ export const findAndTypeTool = createTool({
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    elementsFound: z.number(),
+    found: z.number(), // Shortened from 'elementsFound'
     typed: z.boolean(),
-    finalValue: z.string().optional(),
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
@@ -36,7 +34,6 @@ export const findAndTypeTool = createTool({
         `Find and type: ${context.selector} = "${context.text.substring(0, 50)}..."`
       );
 
-      // Wait for and find elements
       await page.waitForSelector(context.selector, {
         timeout: context.waitTimeout,
       });
@@ -45,17 +42,15 @@ export const findAndTypeTool = createTool({
       if (elements.length === 0) {
         return {
           success: false,
-          elementsFound: 0,
+          found: 0,
           typed: false,
-          error: `No elements found for selector: ${context.selector}`,
+          error: `No elements: ${context.selector}`, // Compressed error
         };
       }
 
-      // Get the target element
       const element = page.locator(context.selector).nth(context.elementIndex);
       await element.waitFor({ state: "visible", timeout: context.waitTimeout });
 
-      // Clear and type
       if (context.clear) {
         await element.clear();
       }
@@ -66,9 +61,6 @@ export const findAndTypeTool = createTool({
         await element.press("Enter");
       }
 
-      // Get final value for verification
-      const finalValue = await element.inputValue();
-
       browserManager.updateActivity();
       console.log(
         `✅ Found ${elements.length} elements, typed into element ${context.elementIndex}`
@@ -76,17 +68,16 @@ export const findAndTypeTool = createTool({
 
       return {
         success: true,
-        elementsFound: elements.length,
+        found: elements.length,
         typed: true,
-        finalValue,
       };
     } catch (error: any) {
       console.error("Find and type failed:", error);
       return {
         success: false,
-        elementsFound: 0,
+        found: 0,
         typed: false,
-        error: error.message,
+        error: error.message.substring(0, 100),
       };
     }
   },
