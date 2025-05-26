@@ -7,3 +7,6 @@ export { findAndClickTool } from './find_and_click/index.js';
 export { navigateAndAnalyzeTool } from './navigate_and_analyze/index.js';
 export { fillFormTool } from './fill_form/index.js';
 export { smartLoginTool } from './smart_login/index.js';
+export { smartSearchTool } from './smart_search/index.js';
+export { smartTableClickTool } from './smart_table_click/index.js';
+export { smartWaitTool } from './smart_wait/index.js';
