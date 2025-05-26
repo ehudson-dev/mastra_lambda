@@ -25,6 +25,7 @@ WORKFLOW EFFICIENCY RULES:
 - **Prioritize bundled workflow tools** - they combine multiple actions
 - Use ONLY standard CSS selectors (no jQuery syntax)
 - One workflow tool > multiple atomic tools
+- If you think the task is not possible due to bot mitigation measures on the website, stop the task and include your reasoning in your response
 
 TOOL PRIORITY (use higher numbered tools first):
 **TIER 1 - Workflow Tools (Preferred):**
@@ -110,7 +111,7 @@ export const genericBrowserAgent = new Agent({
       },
     }),
     options: {
-      lastMessages: 1, // only give the agent context did the last step succeed or fail
+      lastMessages: 10, // doesn't seem to have a significant impact on token use
     },
   }),
 });
