@@ -8,18 +8,18 @@ export interface ElementSearchResult {
 }
 
 const userSelectors = [
-        'input[type="email"]',
-        'input[name="email"]',
-        'input[id="email"]',
-        'input[name*="email"]',
-        'input[id*="email"]',
-        'input[placeholder*="email" i]',
-        'input[aria-label*="email" i]',
-        'input[class*="email"]',
-        'input[name="user"]',
-        'input[name="username"]',
-        'input[name="login"]',
-        ];
+  'input[type="email"]',
+  'input[name="email"]',
+  'input[id="email"]',
+  'input[name*="email"]',
+  'input[id*="email"]',
+  'input[placeholder*="email" i]',
+  'input[aria-label*="email" i]',
+  'input[class*="email"]',
+  'input[name="user"]',
+  'input[name="username"]',
+  'input[name="login"]',
+];
 
 export class AdaptiveSelectorEngine {
   // Common patterns for different input types

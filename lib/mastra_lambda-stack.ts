@@ -72,7 +72,7 @@ export class MastraLambdaStack extends cdk.Stack {
       queueName: "mastra-container-jobs.fifo",
       fifo: true,
       contentBasedDeduplication: false, // We'll provide explicit deduplication IDs
-      visibilityTimeout: cdk.Duration.minutes(10), // Should be longer than container timeout
+      visibilityTimeout: cdk.Duration.minutes(20), // Should be longer than container timeout
       deadLetterQueue: {
         queue: new sqs.Queue(this, "ContainerJobDLQ", {
           queueName: "mastra-container-jobs-dlq.fifo",
