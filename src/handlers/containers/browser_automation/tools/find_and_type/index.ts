@@ -1,28 +1,26 @@
 import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import { BrowserContextManager } from '../../lib/browser_context_manager/index.js';
+import { AdaptiveSelectorEngine } from '../../lib/adaptive_selectors/index.js';
 
 export const findAndTypeTool = createTool({
   id: "find-and-type",
-  description: "Find an input element and type text into it in one operation",
+  description: "Find an input element and type text with intelligent element discovery",
   inputSchema: z.object({
     selector: z.string().describe("CSS selector for input element"),
     text: z.string().describe("Text to type"),
-    elementIndex: z
-      .number()
-      .default(0)
-      .describe("Index if multiple elements match"),
+    type: z.enum(['email', 'password', 'search', 'text']).optional().describe("Input type for smart detection"),
+    elementIndex: z.number().default(0).describe("Index if multiple elements match"),
     clear: z.boolean().default(true).describe("Clear field before typing"),
     pressEnter: z.boolean().default(false).describe("Press Enter after typing"),
-    waitTimeout: z
-      .number()
-      .default(5000)
-      .describe("How long to wait for element"),
+    waitTimeout: z.number().default(5000).describe("How long to wait for element"),
   }),
   outputSchema: z.object({
     success: z.boolean(),
-    found: z.number(), // Shortened from 'elementsFound'
+    found: z.number(),
     typed: z.boolean(),
+    adapted: z.boolean().optional(), // Whether selector was auto-corrected
+    workingSelector: z.string().optional(), // The selector that actually worked
     error: z.string().optional(),
   }),
   execute: async ({ context }): Promise<any> => {
@@ -30,25 +28,32 @@ export const findAndTypeTool = createTool({
       const browserManager = BrowserContextManager.getInstance();
       const page = await browserManager.getPage();
 
-      console.log(
-        `Find and type: ${context.selector} = "${context.text.substring(0, 50)}..."`
+      console.log(`🎯 Smart find and type: ${context.selector}`);
+
+      // Use adaptive selector finding
+      const searchResult = await AdaptiveSelectorEngine.findBestSelector(
+        page,
+        context.selector,
+        context.type
       );
 
-      await page.waitForSelector(context.selector, {
-        timeout: context.waitTimeout,
-      });
-      const elements = await page.locator(context.selector).all();
-
-      if (elements.length === 0) {
+      if (!searchResult.found) {
         return {
           success: false,
           found: 0,
           typed: false,
-          error: `No elements: ${context.selector}`, // Compressed error
+          error: `No elements found for: ${context.selector}`,
         };
       }
 
-      const element = page.locator(context.selector).nth(context.elementIndex);
+      const workingSelector = searchResult.workingSelector || context.selector;
+      const wasAdapted = workingSelector !== context.selector;
+
+      if (wasAdapted) {
+        console.log(`🔄 Adapted: ${context.selector} → ${workingSelector}`);
+      }
+
+      const element = page.locator(workingSelector).nth(context.elementIndex);
       await element.waitFor({ state: "visible", timeout: context.waitTimeout });
 
       if (context.clear) {
@@ -62,17 +67,22 @@ export const findAndTypeTool = createTool({
       }
 
       browserManager.updateActivity();
-      console.log(
-        `✅ Found ${elements.length} elements, typed into element ${context.elementIndex}`
-      );
 
-      return {
+      const result: any = {
         success: true,
-        found: elements.length,
+        found: searchResult.count,
         typed: true,
       };
+
+      if (wasAdapted) {
+        result.adapted = true;
+        result.workingSelector = workingSelector;
+      }
+
+      return result;
+
     } catch (error: any) {
-      console.error("Find and type failed:", error);
+      console.error("Smart find and type failed:", error);
       return {
         success: false,
         found: 0,

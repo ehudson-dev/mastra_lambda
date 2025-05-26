@@ -7,7 +7,7 @@ export class BrowserContextManager {
   private context: BrowserContext | null = null;
   private page: Page | null = null;
   private lastActivity: number = Date.now();
-  private readonly TIMEOUT_MS = 300000; // 5 minutes
+  private readonly TIMEOUT_MS = 900000; // 15 minutes
 
   static getInstance(): BrowserContextManager {
     if (!BrowserContextManager.instance) {
