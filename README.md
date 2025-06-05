@@ -154,20 +154,6 @@ npm run build
 npm run cdk deploy -- -c anthropic_api_key=$ANTHROPIC_API_KEY
 ```
 
-### Local Development
-
-```bash
-# Install dependencies
-npm install
-cd src/dependencies/nodejs && npm install
-
-# Build TypeScript
-npm run build
-
-# Deploy with CDK
-cdk deploy -c anthropic_api_key=$ANTHROPIC_API_KEY
-```
-
 ## Rate Limiting & Performance
 
 - **Intelligent Rate Limiting**: Monitors Anthropic API headers and proactively manages usage
