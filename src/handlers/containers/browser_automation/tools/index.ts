@@ -10,3 +10,4 @@ export { smartLoginTool } from './smart_login/index.js';
 export { smartSearchTool } from './smart_search/index.js';
 export { smartTableClickTool } from './smart_table_click/index.js';
 export { smartWaitTool } from './smart_wait/index.js';
+export { textUploadTool } from './text_upload/index.js';
