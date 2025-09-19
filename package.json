@@ -37,7 +37,7 @@
     "aws-cdk-lib": "2.196.0",
     "constructs": "^10.0.0",
     "mastra": "^0.10.0",
-    "playwright-core": "^1.52.0",
+    "playwright-core": "1.55.0",
     "zod": "^3.25.20"
   }
 }
