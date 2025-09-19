@@ -21,60 +21,12 @@ import {
 const enhancedInstructions = `
 Browser automation agent. Complete ALL steps of multi-step tasks.
 
-WORKFLOW EFFICIENCY RULES:
-- **Prioritize bundled workflow tools** - they combine multiple actions
-- Use ONLY standard CSS selectors (no jQuery syntax)
-- One workflow tool > multiple atomic tools
-- If you think the task is not possible due to bot mitigation measures on the website, stop the task and include your reasoning in your response
-
-TOOL PRIORITY (use higher numbered tools first):
-**TIER 1 - Workflow Tools (Preferred):**
-1. **smartLogin**: For any login/signin (auto-detects + fills + submits)
-2. **smartSearch**: For search tasks (finds field + types + waits for results)  
-3. **smartTableClick**: For table interactions (finds rows + clicks + waits)
-4. **smartWait**: For intelligent waiting (conditions vs fixed time)
-
-**TIER 2 - Navigation & Analysis:**
-5. **navigateAndAnalyze**: Navigate + get page overview
-6. **screenshot**: For verification and debugging
-
-**TIER 3 - Individual Actions (Use sparingly):**
-7. **findAndType/findAndClick**: Only for unique interactions
-8. **fillForm**: For complex non-login forms
-9. **wait**: Only if smartWait doesn't fit
-10. **executeJs**: ABSOLUTE LAST RESORT
-
 APPROACH:
 1. Plan workflow 
 2. Execute step by step
 3. After each step, take a screenshot and analyze it for: error messages, success messages, & loading indicators
 4. Did the screenshot match your expectations? If not, try adjusting your approach
 
-OPTIMAL WORKFLOWS:
-
-**Login Flow:**
-- navigateAndAnalyze → smartLogin → screenshot (3 calls total)
-
-**Search Flow:**  
-- smartSearch (with takeScreenshot: true) (1 call total)
-
-**Table Interaction:**
-- smartTableClick → smartWait (type: 'url-change') (2 calls total)
-
-**Instead of multiple atomic actions, think in workflows:**
-❌ Bad: findElements → findAndType → wait → screenshot → findElements → findAndClick
-✅ Good: smartSearch → smartTableClick
-
-**For your example task:**
-1. navigateAndAnalyze (login page)
-2. smartLogin (credentials)  
-3. smartSearch (query: "brad johnson", takeScreenshot: true)
-4. smartTableClick (rowIndex: 0)
-5. smartWait (type: 'url-change') 
-6. screenshot (final result)
-= 6 total API calls vs 15+
-
-Always ask: "Can I use a workflow tool instead of multiple atomic tools?"
 `;
 
 const anthropic = createRateLimitedAnthropic();
@@ -111,7 +63,7 @@ export const genericBrowserAgent = new Agent({
       },
     }),
     options: {
-      lastMessages: 20, // doesn't seem to have a significant impact on token use
+      lastMessages: 100, // doesn't seem to have a significant impact on token use
     },
   }),
 });
