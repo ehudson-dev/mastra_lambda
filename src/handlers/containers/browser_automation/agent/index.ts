@@ -82,7 +82,7 @@ const anthropic = createRateLimitedAnthropic();
 export const genericBrowserAgent = new Agent({
   name: "Generic Browser Automation Agent",
   instructions: enhancedInstructions,
-  model: anthropic("claude-3-7-sonnet-20250219"),
+  model: anthropic("claude-sonnet-4-20250514"),
   tools: {
    // Tier 1 - Workflow tools (prioritized)
     smartLogin: smartLoginTool,
