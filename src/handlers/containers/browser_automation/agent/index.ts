@@ -63,7 +63,7 @@ export const genericBrowserAgent = new Agent({
       },
     }),
     options: {
-      lastMessages: 100, // doesn't seem to have a significant impact on token use
+      lastMessages: 1000, // doesn't seem to have a significant impact on token use
     },
   }),
 });
