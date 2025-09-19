@@ -20,7 +20,7 @@
     "@mastra/core": "^0.10.0",
     "@mastra/dynamodb": "^0.10.0",
     "@mastra/memory": "^0.10.0",
-    "playwright-core": "1.55.0",
+    "playwright-core": "^1.40.0",
     "zod": "^3.25.20"
   },
   "devDependencies": {
