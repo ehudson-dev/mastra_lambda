@@ -41,7 +41,7 @@ export const handler = async (event: any): Promise<any> => {
       resourceId: "generic-browser-automation",
       maxSteps: event.maxSteps || 25,
       maxRetries: event.maxRetries || 0,
-      maxTokens: event.maxTokens || 100000,
+      maxTokens: event.maxTokens || 64000,
     });
 
     const processingTime = Date.now() - startTime;

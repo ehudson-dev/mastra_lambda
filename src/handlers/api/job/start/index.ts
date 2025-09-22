@@ -60,6 +60,9 @@ export const handler = async (
         threadId: request.thread_id || crypto.randomUUID(),
         timestamp,
         originalRequest: request,
+        maxSteps: request.maxSteps || undefined,
+        maxTokens: request.maxTokens || undefined,
+        maxRetries: request.maxRetries || undefined
       };
 
       console.log('Sending job to SQS:', jobPayload);
