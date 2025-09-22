@@ -190,6 +190,7 @@ export class MastraLambdaStack extends cdk.Stack {
         timeout: cdk.Duration.minutes(15), 
         memorySize: 2048,
         ephemeralStorageSize: cdk.Size.gibibytes(2),
+        retryAttempts: 0,
         environment: {
           REGION: this.region,
           ANTHROPIC_API_KEY: anthropic_api_key,
