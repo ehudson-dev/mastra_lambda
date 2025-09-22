@@ -12,10 +12,8 @@ import {
   screenshotTool,
   executeJSTool,
   findElementsTool,
-  smartLoginTool,
-  smartSearchTool,
-  smartTableClickTool,
-  smartWaitTool
+  smartWaitTool,
+  textUploadTool
 } from "../tools/index.js";
 
 const enhancedInstructions = `
@@ -36,20 +34,12 @@ export const genericBrowserAgent = new Agent({
   instructions: enhancedInstructions,
   model: anthropic("claude-sonnet-4-20250514"),
   tools: {
-   // Tier 1 - Workflow tools (prioritized)
-    smartLogin: smartLoginTool,
-    smartSearch: smartSearchTool,
-    smartTableClick: smartTableClickTool, 
     smartWait: smartWaitTool,
-    
-    // Tier 2 - Navigation
     navigateAndAnalyze: navigateAndAnalyzeTool,
     screenshot: screenshotTool,
-    
-    // Tier 3 - Individual actions (discouraged)
+    textUploadTool: textUploadTool,
     findAndType: findAndTypeTool,
     findAndClick: findAndClickTool,
-    fillForm: fillFormTool,
     wait: waitTool,
     executeJs: executeJSTool,
     findElements: findElementsTool,
